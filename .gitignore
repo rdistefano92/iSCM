@@ -1,0 +1,11 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rcheck/
+*.tar.gz
+*.zip
+germany_results/
+figure_B1_placebo_RMSPE.*
+figure_1_estimated_effects.*
+figure_2_penalized_SCM.*

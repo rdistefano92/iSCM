@@ -1,0 +1,43 @@
+#' German reunification panel (Abadie et al., 2015)
+#'
+#' Country-level panel of 17 OECD countries over 1960-2003, used to estimate the
+#' effect of the 1990 German reunification on West Germany's GDP per capita,
+#' allowing for spillovers to Austria. This is the replication dataset of
+#' Abadie et al. (2015) as used in the empirical application of Di Stefano and
+#' Mellace.
+#'
+#' @format A data frame with 748 rows (17 countries x 44 years) and 11 columns:
+#' \describe{
+#'   \item{index}{Integer unit identifier (West Germany = 7, Austria = 3).}
+#'   \item{country}{Country name.}
+#'   \item{year}{Calendar year, 1960-2003.}
+#'   \item{gdp}{Real GDP per capita at PPP, 2002 US dollars (the outcome).}
+#'   \item{infrate}{Inflation rate.}
+#'   \item{trade}{Trade openness (exports plus imports over GDP).}
+#'   \item{schooling}{Secondary-school attainment rate.}
+#'   \item{invest60, invest70, invest80}{Investment rate, decade averages.}
+#'   \item{industry}{Industry share of value added.}
+#' }
+#'
+#' @source Abadie, A., Diamond, A. and Hainmueller, J. (2015). Comparative
+#'   politics and the synthetic control method. \emph{American Journal of
+#'   Political Science} 59(2), 495-510. Replication files.
+#' @details The full replication of the paper, with the exact \pkg{Synth}
+#'   specification, is in
+#'   \code{system.file("examples", "germany_replication.R", package = "iscm")}.
+#'   The example below is a simplified specification that matches on the
+#'   pre-reunification GDP path with the built-in backend; its numbers therefore
+#'   differ from those in the paper.
+#' @examples
+#' data(germany)
+#' head(germany)
+#'
+#' # Simplified illustration (not the paper's specification)
+#' fit <- iscm(germany, id = "country", time = "year", outcome = "gdp",
+#'             treated = "West Germany", affected = "Austria", t0 = 1989)
+#' fit
+#' plot(fit, xlab = "Year", ylab = "Gap in GDP per capita")
+#' @name germany
+#' @docType data
+#' @keywords datasets
+"germany"

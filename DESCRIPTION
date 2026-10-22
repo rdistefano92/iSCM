@@ -1,0 +1,31 @@
+Package: iscm
+Type: Package
+Title: The Inclusive Synthetic Control Method
+Version: 0.1.2
+Authors@R: c(
+    person("Roberta", "Di Stefano", role = c("aut", "cre"),
+           email = "roberta.distefano@unimol.it"),
+    person("Giovanni", "Mellace", role = c("aut"),
+           email = "giome@sam.sdu.dk"))
+Description: Implements the inclusive synthetic control method (iSCM) of
+    Di Stefano and Mellace, a modification of synthetic control methods
+    that allows units potentially affected by an intervention, directly or
+    through spillovers, to remain in the donor pool. A synthetic control is
+    constructed for the main treated unit and for every potentially affected
+    unit, yielding a linear system that links the contaminated estimates to the
+    effects of interest; solving the system removes the contamination exactly,
+    without modifying the underlying estimator. The package provides the full and
+    simplified iSCM, the restricted synthetic control benchmark, diagnostics for
+    the conditioning of the correction, in-space placebo inference, and a
+    pluggable estimator interface so that any SC-type backend can be used
+    (dependency-free classic and penalized backends are included, with an
+    optional wrapper around the 'Synth' package).
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 3.6)
+Imports: stats, graphics, utils
+Suggests: pensynth, clarabel, Synth, testthat (>= 3.0.0), knitr, rmarkdown
+VignetteBuilder: knitr
+RoxygenNote: 7.3.1
+Config/testthat/edition: 3
+LazyData: true
