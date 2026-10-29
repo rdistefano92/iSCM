@@ -10,21 +10,36 @@ synthetic-control-type estimator.
 
 ```r
 # install.packages("remotes")
-remotes::install_github("rdistefano92/iscm", build_vignettes = TRUE)
+remotes::install_github("rdistefano92/iSCM", build_vignettes = TRUE)
 ```
 
-The package has no required dependencies beyond base R. To use the classic SCM of
-Abadie et al. (as in the paper), also install `Synth`; the penalized-SCM example
-additionally needs `pensynth` and `clarabel`.
+The only required dependency is `ggplot2`, used for the plots. To use the
+classic SCM of Abadie, Diamond and Hainmueller (2010, 2015), as in the paper's
+application, also install the `Synth` package (Abadie, Diamond and Hainmueller,
+2011). The penalized-SCM replication script additionally needs `pensynth` and
+`clarabel`.
 
 ## What you need
 
-A balanced long-format panel (one row per unit and period) and three choices:
+iSCM sorts the units of the panel into three groups:
 
-- `treated`: the main treated unit;
-- `affected`: the units potentially affected by the intervention (the set *M*);
-  every other unit is treated as a pure control;
-- `t0`: the last pre-intervention period.
+- the **main treated unit**, whose effect you want to estimate;
+- the **potentially affected units**, the set *M* in the paper: units that may
+  also have been affected by the intervention, because they were treated as well
+  or exposed to spillovers. Unlike in standard SCM, they stay in the donor pool;
+- the **pure controls**: all remaining units, assumed unaffected.
+
+You then need a balanced panel in long format (one row per unit and period) and
+these arguments:
+
+| Argument | What it is |
+|---|---|
+| `data` | the panel, a `data.frame` |
+| `id`, `time`, `outcome` | names of the columns with the unit identifier, the period and the outcome |
+| `treated` | identifier of the main treated unit |
+| `affected` | identifiers of the potentially affected units; every unit not listed here or in `treated` is a pure control |
+| `t0` | last pre-intervention period |
+| `predictors` | optional: names of the columns used for matching, averaged over the pre-intervention period. If omitted, units are matched on the pre-intervention path of the outcome |
 
 ## Quick start
 
@@ -53,11 +68,12 @@ fit$effects            # estimates as a matrix (row 1 = treated, then affected)
 | get the **unrestricted** (uncorrected) SCM | `fit$gaps_unrestricted` |
 | see the effects | `print(fit)`, `summary(fit)`, `fit$effects` |
 | plot the gaps (Figure 1 style) | `plot(fit, unit = "A1", restricted = rest)` |
+| plot observed vs synthetic outcomes, or the weights | `plot(fit, type = "trends")`, `plot(fit, type = "weights")` |
 | check the **conditioning** of the correction (det, σ<sub>min</sub>, α) | `fit$diagnostics`, `omega_diagnostics(Omega)` |
 | see the implied weights on pure controls (Lemma 3.1) | `fit$implied_weights` |
 | **choose** among restricted / full / simplified (Section 5.1) | `iscm_compare(...)` |
 | same, for fits estimated outside the package | `iscm_compare_fits()`, `iscm_decision()` |
-| run the **placebo** analysis (Online Appendix B) | `iscm_placebo(fit, data, id, time, outcome, target = ...)` |
+| run the **placebo** analysis ([Online Appendix B](https://arxiv.org/abs/2403.17624)) | `iscm_placebo(fit, data, id, time, outcome, target = ...)` |
 | same, for fits estimated outside the package | `iscm_purge()`, then `iscm_placebo_fits(fit, ..., placebo_weights)` |
 | check **sensitivity** to the set of affected units (Section 5.2) | `iscm_sensitivity(..., affected_sets = list(...))` |
 | use **another SC-type estimator** | `iscm(..., estimator = scm_penalized)`, `scm_synth`, or your own function (`?backends`) |
@@ -67,16 +83,30 @@ fit$effects            # estimates as a matrix (row 1 = treated, then affected)
 
 All data-level functions (`iscm`, `restricted_scm`, `iscm_compare`,
 `iscm_sensitivity`) take the same first arguments, so a typical analysis is the
-same call repeated with a different function name.
+same call repeated with a different function name. All plots are `ggplot2`
+objects, so they can be customised, e.g. `plot(fit) + ggplot2::labs(y = "GDP")`.
 
 ## When does iSCM beat the restricted SCM?
 
 The iSCM counterfactual is itself a weighted average of pure controls
 (Lemma 3.1), so iSCM gains when the restricted optimizer, guided by its own
 criterion, picks a worse combination of pure controls than the one iSCM implies
-(Section 3.1). `simulate_iscm_covariates()` builds such a case: units are matched
-on observed covariates, the treated and the affected unit share an unobserved
-characteristic, and the pure controls closest in covariates do not.
+(Section 3.1). `simulate_iscm_covariates()` builds such a case, in the spirit of
+the German application:
+
+- the outcome depends on two **observed covariates**, `x1` and `x2`, and on an
+  **unobserved characteristic** *u* (for example, institutions or economic
+  structure, which the covariates do not capture);
+- the main treated unit `TR` and the affected unit `A1` are close to each other
+  in the covariates and share the same *u*, like West Germany and Austria;
+- the pure controls closest to `TR` in the covariates, `C3` and `C4`, have a
+  different *u*; the pure controls with the same *u* are farther away.
+
+All synthetic controls are matched on `x1` and `x2` only. With `A1` in the donor
+pool, the synthetic `TR` is built mostly from `A1` and therefore has the right
+*u*. Without `A1`, the restricted SCM picks `C3` and `C4`, which match the
+covariates but not *u*, so its counterfactual is biased. iSCM keeps `A1` and
+removes the contamination from its spillover.
 
 ```r
 sim  <- simulate_iscm_covariates(seed = 1)     # true effects: 2 on TR, 3 on A1
@@ -100,23 +130,46 @@ matched on the pre-intervention outcome path (default) or on the columns given i
 `predictors`, averaged over the pre-intervention period. Choose the estimator with
 `estimator =`:
 
-- `scm_base` (default): classic simplex-constrained SCM, no dependencies;
-- `scm_penalized`: penalized SCM of Abadie and L'Hour (2021), no dependencies;
+- `scm_base` (default): classic simplex-constrained SCM, no extra dependencies;
+- `scm_penalized`: penalized SCM of Abadie and L'Hour (2021), no extra dependencies;
 - `scm_synth`: `Synth::synth`, which also optimises the predictor weights;
 - any function `function(X1, X0, v = NULL, ...)` returning donor weights.
 
 **2. Bring your own synthetic controls: `iscm_assemble()`.** When you need a
 specification `iscm()` cannot express, such as `Synth::dataprep` with special
 predictors and different time windows, or a penalized estimator, estimate the
-synthetic control of each focal unit yourself (with the other focal units in its
-donor pool) and pass the gap series and donor weights:
+synthetic control of the main treated unit and of each affected unit yourself,
+with the other units (affected ones included) in the donor pool, and pass to
+`iscm_assemble()`, for each of them, the gap series (observed minus synthetic
+outcome, over all periods) and the named vector of donor weights.
+
+The example below estimates the two synthetic controls by hand on simulated data,
+so that it runs as it is:
 
 ```r
+library(iscm)
+sim <- simulate_iscm(n_affected = 1, n_pure = 6, tau = 2, spill = 3, seed = 7)
+Y   <- with(sim$data, tapply(Y, list(time, unit), sum))   # periods x units
+pre <- seq_len(sim$t0)
+
+# your own estimator: here scm_base() on the pre-intervention outcome path
+my_sc <- function(unit) {
+  donors <- setdiff(colnames(Y), unit)
+  w <- scm_base(Y[pre, unit], Y[pre, donors], standardize = FALSE)
+  list(w = w, gap = as.numeric(Y[, unit] - Y[, donors] %*% w))
+}
+sc_tr <- my_sc("TR")
+sc_a1 <- my_sc("A1")
+
 fit <- iscm_assemble(
-  gaps    = list("West Germany" = gap_wg, "Austria" = gap_au),
-  weights = list("West Germany" = w_wg,   "Austria" = w_au),
-  t0 = 1989, times = 1960:2003)
+  gaps    = list(TR = sc_tr$gap, A1 = sc_a1$gap),
+  weights = list(TR = sc_tr$w,   A1 = sc_a1$w),
+  t0 = sim$t0, pure = sim$pure)
+fit
 ```
+
+The replication script of the paper (see [Replicating the paper](#replicating-the-paper))
+does the same with the exact `Synth` specification for West Germany and Austria.
 
 The result has the same `print`, `summary` and `plot` methods. Use
 `iscm_compare_fits()` for the decision rule on such fits. For the placebo
@@ -127,6 +180,8 @@ estimator, and pass the weights to `iscm_placebo_fits()`.
 ## A typical workflow
 
 ```r
+library(iscm)
+sim  <- simulate_iscm(n_affected = 1, n_pure = 6, tau = 2, spill = 3, seed = 7)
 args <- list(data = sim$data, id = "unit", time = "time", outcome = "Y",
              treated = "TR", affected = "A1", t0 = sim$t0)
 
@@ -156,17 +211,28 @@ explanations.
 
 ## Replicating the paper
 
-The `germany` dataset is the panel of Abadie et al. (2015). Two scripts installed
-with the package reproduce the empirical application with the exact `Synth`
-specification of the paper:
+The `germany` dataset is the panel of Abadie, Diamond and Hainmueller (2015).
+Two scripts installed with the package reproduce the empirical application with
+the exact `Synth` specification of the paper. Each one runs the whole analysis,
+prints the main results and saves the tables (as `.csv`) and figures (as `.pdf`
+and `.png`) in a folder of your choice:
 
 ```r
-# Tables 1 and C.1-C.2, Figure 1, decision rule, placebo analysis (Figure C.1)
+options(iscm.output_dir = "results")   # folder for tables and figures
+
+# West Germany and Austria, about 4 minutes. Needs Synth.
+# Saves Tables 1, C.1 and C.2, Figure 1 and the placebo ratios of Figure C.1,
+# and prints Omega, the effects, the decision rule and the placebo p-values.
 source(system.file("examples", "germany_replication.R", package = "iscm"))
 
-# Inclusive penalized SCM (Online Appendix C, Figure C.2)
+# Inclusive penalized SCM (Figure C.2). Needs Synth, pensynth and clarabel.
 source(system.file("examples", "germany_penalized.R", package = "iscm"))
 ```
+
+Without `options(iscm.output_dir = ...)`, the files go to a new subfolder of the
+working directory (`iscm_germany_replication` and `iscm_germany_penalized`). To
+read the code instead of running it, open the scripts with
+`file.edit(system.file("examples", "germany_replication.R", package = "iscm"))`.
 
 They recover the published figures: Austria's weight in synthetic West Germany is
 `0.42` and West Germany's in synthetic Austria `0.33`, so Ω has determinant
@@ -192,6 +258,22 @@ devtools::test()
 devtools::check()
 ```
 
-## Reference
+## References
+
+Abadie, A., Diamond, A. and Hainmueller, J. (2010). Synthetic control methods for
+comparative case studies: Estimating the effect of California's tobacco control
+program. *Journal of the American Statistical Association* 105(490), 493–505.
+
+Abadie, A., Diamond, A. and Hainmueller, J. (2011). Synth: An R package for
+synthetic control methods in comparative case studies. *Journal of Statistical
+Software* 42(13), 1–17.
+
+Abadie, A., Diamond, A. and Hainmueller, J. (2015). Comparative politics and the
+synthetic control method. *American Journal of Political Science* 59(2), 495–510.
+
+Abadie, A. and L'Hour, J. (2021). A penalized synthetic control estimator for
+disaggregated data. *Journal of the American Statistical Association* 116(536),
+1817–1834.
 
 Di Stefano, R. and Mellace, G. *The inclusive synthetic control method.*
+[arXiv:2403.17624](https://arxiv.org/abs/2403.17624).

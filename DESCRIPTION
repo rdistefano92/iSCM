@@ -1,7 +1,7 @@
 Package: iscm
 Type: Package
 Title: The Inclusive Synthetic Control Method
-Version: 0.1.2
+Version: 0.1.3
 Authors@R: c(
     person("Roberta", "Di Stefano", role = c("aut", "cre"),
            email = "roberta.distefano@unimol.it"),
@@ -23,7 +23,7 @@ Description: Implements the inclusive synthetic control method (iSCM) of
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 3.6)
-Imports: stats, graphics, utils
+Imports: stats, utils, ggplot2 (>= 3.4.0)
 Suggests: pensynth, clarabel, Synth, testthat (>= 3.0.0), knitr, rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 7.3.1

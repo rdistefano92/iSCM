@@ -23,8 +23,12 @@ library(iscm)
 
 data(germany)
 x   <- germany
+## Output folder: options(iscm.output_dir = "..."), the first command-line
+## argument, or else the subfolder "iscm_germany_penalized" of the working
+## directory.
 args <- commandArgs(trailingOnly = TRUE)
-output_dir <- if (length(args)) args[[1]] else getwd()
+output_dir <- getOption("iscm.output_dir",
+  if (length(args)) args[[1]] else file.path(getwd(), "iscm_germany_penalized"))
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 key <- unique(x[, c("index", "country")])
 WG <- 7; AU <- 3; t0 <- 1989; years <- 1960:2003
@@ -207,10 +211,10 @@ draw_figure2 <- function() {
     "(d) Penalized iSCM vs iSCM, Austria")
 }
 
-pdf(file.path(output_dir, "figure_2_penalized_SCM.pdf"),
+pdf(file.path(output_dir, "figure_C2_penalized_SCM.pdf"),
     width = 11, height = 9, useDingbats = FALSE)
 draw_figure2(); dev.off()
-png(file.path(output_dir, "figure_2_penalized_SCM.png"),
+png(file.path(output_dir, "figure_C2_penalized_SCM.png"),
     width = 2200, height = 1800, res = 200)
 draw_figure2(); dev.off()
 
@@ -237,3 +241,5 @@ saveRDS(list(fit_penalized = fit_pen, comparison = cmp_pen,
              effects = penalized_effects,
              lambdas = c("West Germany" = f_wg$lambda, "Austria" = f_au$lambda)),
         file.path(output_dir, "germany_penalized_results.rds"))
+
+message("Tables and figures saved in: ", normalizePath(output_dir))

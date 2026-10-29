@@ -58,6 +58,7 @@ See Section 5.2 of the paper for guidance on choosing \code{affected}.
   Get the unrestricted (uncorrected) SCM gaps \tab \code{fit$gaps_unrestricted} \cr
   Average and per-period effects \tab \code{print(fit)}, \code{summary(fit)} \cr
   Plot the gaps (Figure 1 style) \tab \code{plot(fit, unit = ..., restricted = ...)} \cr
+  Plot observed vs synthetic outcomes, or the weights \tab \code{plot(fit, type = "trends")}, \code{plot(fit, type = "weights")} \cr
   Conditioning of the correction (det, \eqn{\sigma_{\min}}, \eqn{\alpha}) \tab \code{fit$diagnostics}, \code{omega_diagnostics()} \cr
   Implied weights on pure controls (Lemma 3.1) \tab \code{fit$implied_weights} \cr
   Choose restricted / full / simplified (Section 5.1) \tab \code{iscm_compare(...)} \cr

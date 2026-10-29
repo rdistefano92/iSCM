@@ -38,8 +38,9 @@
 #'   \code{ratio}, plus the target's \code{ratio}, \code{rank}, rank-based
 #'   \code{p_value}, the smallest attainable p-value \code{min_p_value} and the
 #'   conditioning diagnostics of \code{object} (\code{alpha}, \code{sigma_min},
-#'   \code{amplification}). \code{plot()} draws the ratios as in Figure C.1 of
-#'   the paper, with the target in red.
+#'   \code{amplification}), and the gaps of the target and of every placebo
+#'   (\code{gaps}). \code{\link[=plot.iscm_placebo]{plot()}} draws the ratios
+#'   as in Figure C.1 of the paper, or the gap paths.
 #'
 #' @seealso \code{\link{iscm_placebo_fits}} for synthetic controls estimated
 #'   outside the package; \code{\link{iscm}}.
@@ -267,12 +268,16 @@ iscm_placebo_fits <- function(object, data, id, time, outcome, placebo_weights,
 
   # --- placebo statistics: each pure control as treated -------------------------
   Yp_all <- purify()
+  gaps <- matrix(NA_real_, length(times), length(placebo_weights) + 1L,
+                 dimnames = list(as.character(times), c(target, names(placebo_weights))))
+  gaps[, target] <- gap_t
   rows <- lapply(names(placebo_weights), function(j) {
     w <- placebo_weights[[j]]
     check_donors(w, j)
     if (j %in% names(w)) stop(sprintf("The weights of %s include %s itself.", j, j),
                               call. = FALSE)
     gap <- as.numeric(Yp_all[, j]) - as.numeric(Yp_all[, names(w), drop = FALSE] %*% w)
+    gaps[, j] <<- gap
     data.frame(unit = j, pre_rmspe = rmspe(gap[pre]), post_rmspe = rmspe(gap[post]),
                ratio = rmspe(gap[post]) / rmspe(gap[pre]), stringsAsFactors = FALSE)
   })
@@ -292,7 +297,8 @@ iscm_placebo_fits <- function(object, data, id, time, outcome, placebo_weights,
                  rank = rank_target, n = nrow(tab), p_value = p_value,
                  min_p_value = 1 / (length(placebo_ratios) + 1),
                  alpha = d$alpha, sigma_min = d$sigma_min,
-                 amplification = d$amplification),
+                 amplification = d$amplification,
+                 gaps = gaps, times = times, t0 = object$t0),
             class = "iscm_placebo")
 }
 
@@ -319,13 +325,4 @@ print.iscm_placebo <- function(x, digits = 3, ...) {
     }
   }
   invisible(x)
-}
-
-#' @export
-plot.iscm_placebo <- function(x, ...) {
-  tab <- x$table[order(x$table$ratio), ]
-  cols <- ifelse(tab$unit == x$target, "red", "black")
-  graphics::dotchart(tab$ratio, labels = tab$unit, color = cols,
-                     xlab = "post/pre RMSPE ratio", pch = 19, ...)
-  invisible(tab)
 }

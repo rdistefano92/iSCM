@@ -45,17 +45,29 @@ contamination without modifying the underlying estimator.
 | get the unrestricted (uncorrected) SCM | `fit$gaps_unrestricted` |
 | see effects and diagnostics | `fit`, `summary(fit)`, `fit$effects`, `fit$diagnostics` |
 | plot the gaps | `plot(fit, unit = ..., restricted = ...)` |
+| plot observed vs synthetic outcomes, or the weights | `plot(fit, type = "trends")`, `plot(fit, type = "weights")` |
 | choose among the specifications | `iscm_compare(...)` |
 | run the placebo analysis | `iscm_placebo(fit, data, id, time, outcome, target = ...)` |
 | vary the set of affected units | `iscm_sensitivity(..., affected_sets = list(...))` |
 | use another SC-type estimator | `iscm(..., estimator = scm_penalized)`, `scm_synth`, or your own function |
 | correct fits estimated elsewhere | `iscm_assemble(gaps, weights, t0)` |
 
-All data-level functions take the same first arguments: a balanced long panel
-(`data`), the names of the unit, time and outcome columns (`id`, `time`,
-`outcome`), the main treated unit (`treated`), the potentially affected units
-(`affected`) and the last pre-intervention period (`t0`). Every unit that is
-neither treated nor affected is a pure control.
+iSCM sorts the units into three groups: the **main treated unit**; the
+**potentially affected units** (the set $M$), which may also have been affected
+by the intervention, because treated as well or exposed to spillovers, and which
+stay in the donor pool; and the **pure controls**, all remaining units, assumed
+unaffected.
+
+All data-level functions take the same first arguments:
+
+| Argument | What it is |
+|---|---|
+| `data` | a balanced panel in long format (one row per unit and period) |
+| `id`, `time`, `outcome` | names of the columns with the unit identifier, the period and the outcome |
+| `treated` | identifier of the main treated unit |
+| `affected` | identifiers of the potentially affected units; every other unit is a pure control |
+| `t0` | last pre-intervention period |
+| `predictors` | optional: columns used for matching, averaged over the pre-intervention period; if omitted, units are matched on the pre-intervention outcome path |
 
 ## 1. Estimate
 
@@ -170,8 +182,15 @@ recovers the spillover:
 mean(fit_c$effects["A1", ])   # true spillover = 3
 ```
 
+Plots are drawn with `ggplot2`, so they can be modified with the usual
+`ggplot2` functions. `type = "trends"` compares the observed outcome with the
+synthetic ones, and `type = "weights"` shows the donor weights next to the
+implied weights on the pure controls:
+
 ```{r cov-plot}
 plot(fit_c, restricted = rest_c)
+plot(fit_c, type = "trends", restricted = rest_c)
+plot(fit_c, type = "weights")
 ```
 
 ## 2. Check the diagnostics
@@ -258,7 +277,8 @@ still available with `rule = "alpha"` (and `alpha_tol`).
 
 ## 4. Placebo inference
 
-`iscm_placebo()` implements the in-space placebo analysis of Online Appendix B.
+`iscm_placebo()` implements the in-space placebo analysis of
+[Online Appendix B](https://arxiv.org/abs/2403.17624).
 Outcomes of the affected units are purged of their estimated effects, the
 intervention is reassigned to each pure control in turn, and the post- to
 pre-intervention RMSPE ratios are compared. Run it for the main treated unit and
@@ -268,6 +288,7 @@ for each affected unit.
 pb <- iscm_placebo(fit, sim$data, "unit", "time", "Y", target = "TR")
 pb
 plot(pb)
+plot(pb, type = "gaps")
 
 iscm_placebo(fit, sim$data, "unit", "time", "Y", target = "A1")
 ```
@@ -398,9 +419,22 @@ system.file("examples", "germany_replication.R", package = "iscm")
 system.file("examples", "germany_penalized.R",   package = "iscm")
 ```
 
-## Reference
+## References
 
-Di Stefano, R. and Mellace, G. *The inclusive synthetic control method.*
+Abadie, A., Diamond, A. and Hainmueller, J. (2010). Synthetic control methods for
+comparative case studies: Estimating the effect of California's tobacco control
+program. *Journal of the American Statistical Association* 105(490), 493–505.
+
+Abadie, A., Diamond, A. and Hainmueller, J. (2011). Synth: An R package for
+synthetic control methods in comparative case studies. *Journal of Statistical
+Software* 42(13), 1–17.
 
 Abadie, A., Diamond, A. and Hainmueller, J. (2015). Comparative politics and the
 synthetic control method. *American Journal of Political Science* 59(2), 495–510.
+
+Abadie, A. and L'Hour, J. (2021). A penalized synthetic control estimator for
+disaggregated data. *Journal of the American Statistical Association* 116(536),
+1817–1834.
+
+Di Stefano, R. and Mellace, G. *The inclusive synthetic control method.*
+[arXiv:2403.17624](https://arxiv.org/abs/2403.17624).

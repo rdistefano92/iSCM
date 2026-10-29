@@ -1,3 +1,36 @@
+# iscm 0.1.3
+
+## Plots
+
+* All plots are now drawn with `ggplot2` (new required dependency) and return
+  `ggplot` objects that can be customised with the usual `ggplot2` functions.
+  Colours are colour-blind safe and every series also has its own line type.
+* `plot.iscm()` gains `type`: `"gaps"` (default, Figure 1 style), `"trends"`
+  (observed against synthetic outcomes) and `"weights"` (donor weights, with the
+  implied pure-control weights of Lemma 3.1). Several focal units can be drawn
+  at once in separate panels (`unit = c(...)`).
+* `plot.iscm_placebo()` gains `type = "gaps"`, the gap paths of the target and
+  of the placebos, with optional pruning of poorly fitted placebos (`prune`).
+  Placebo objects now store these gaps.
+* New `theme_iscm()`.
+
+## Documentation
+
+* README and vignette: the three groups of units (main treated, potentially
+  affected, pure controls) are defined before they are used; the arguments
+  `id`, `time`, `outcome` and `predictors` are listed with the others; full
+  references (Abadie, Diamond and Hainmueller 2010, 2011, 2015; Abadie and
+  L'Hour 2021) and a link to the paper on arXiv; the simulation design of
+  `simulate_iscm_covariates()` is explained step by step.
+* The `iscm_assemble()` example in the README is now self-contained and runs as
+  it is; the "typical workflow" block no longer depends on objects created in
+  earlier blocks.
+* The replication scripts write their output to the folder set with
+  `options(iscm.output_dir = ...)`, or to a new subfolder of the working
+  directory, instead of the working directory itself, and say where. Output
+  files are named after the paper (`table_C1_effects.csv`,
+  `table_C2_weights.csv`, `figure_C1_placebo_RMSPE.*`, `figure_C2_penalized_SCM.*`).
+
 # iscm 0.1.2
 
 ## New features

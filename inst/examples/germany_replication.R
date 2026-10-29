@@ -7,8 +7,13 @@ library(iscm)
 
 data(germany)
 x <- germany
+## Tables and figures are written to the folder given by
+## options(iscm.output_dir = "..."), or by the first command-line argument
+## (Rscript germany_replication.R <folder>), or else to the subfolder
+## "iscm_germany_replication" of the working directory. Runs in about 4 minutes.
 args <- commandArgs(trailingOnly = TRUE)
-figure_dir <- if (length(args)) args[[1]] else getwd()
+figure_dir <- getOption("iscm.output_dir",
+  if (length(args)) args[[1]] else file.path(getwd(), "iscm_germany_replication"))
 dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
 key <- unique(x[, c("index", "country")])
 named <- function(w) setNames(as.numeric(w),
@@ -74,10 +79,9 @@ summary(fit)
 ## Gaps plotted against the unrestricted and restricted synthetic controls
 rest_wg <- list(gap = gap_wg_r)      # minimal object accepted by plot.iscm
 rest_au <- list(gap = gap_au_r)
-op <- par(mfrow = c(1, 2))
-plot(fit, unit = "West Germany", restricted = rest_wg)
-plot(fit, unit = "Austria",      restricted = rest_au)
-par(op)
+print(plot(fit, unit = c("West Germany", "Austria"),
+           restricted = list("West Germany" = rest_wg, "Austria" = rest_au),
+           xlab = "Year", ylab = "Gap in GDP per capita (2002 USD)"))
 
 ## Decision rule (Section 5.1) on the actual Synth fits: predictor imbalance and
 ## pre-intervention RMSPE, unrestricted vs restricted, for both units.
@@ -194,7 +198,7 @@ table2 <- data.frame(
   row.names = NULL, check.names = FALSE)
 table2[table2$country == "West Germany", c("west_germany_unrestricted", "west_germany_restricted")] <- NA
 table2[table2$country == "Austria", c("austria_unrestricted", "austria_restricted")] <- NA
-write.csv(table2, file.path(figure_dir, "table_2_weights.csv"), row.names = FALSE)
+write.csv(table2, file.path(figure_dir, "table_C2_weights.csv"), row.names = FALSE)
 
 effects_frame <- function(unit) {
   unres <- if (unit == "West Germany") gap_wg[31:44] else gap_au[31:44]
@@ -215,7 +219,7 @@ averages <- aggregate(cbind(unrestricted_SCM, restricted_SCM, full_iSCM,
 averages$year <- "Average 1990-2003"
 selected$year <- as.character(selected$year)
 table3 <- rbind(selected, averages[names(selected)])
-write.csv(table3, file.path(figure_dir, "table_3_effects_with_restricted.csv"),
+write.csv(table3, file.path(figure_dir, "table_C1_effects.csv"),
           row.names = FALSE)
 
 diagnostics <- data.frame(
@@ -228,7 +232,7 @@ write.csv(diagnostics, file.path(figure_dir, "iscm_diagnostics.csv"), row.names 
 write.csv(cmp$comparison, file.path(figure_dir, "specification_comparison.csv"),
           row.names = FALSE)
 saveRDS(list(fit = fit, fit_simplified = fit_simplified, comparison = cmp,
-             table1 = table1, table2 = table2, table3 = table3,
+             table1 = table1, table_C2 = table2, table_C1 = table3,
              effects_annual = effects_annual),
         file.path(figure_dir, "germany_replication_results.rds"))
 
@@ -313,12 +317,12 @@ draw_placebo_figure <- function() {
   }
 }
 
-pdf(file.path(figure_dir, "figure_B1_placebo_RMSPE.pdf"),
+pdf(file.path(figure_dir, "figure_C1_placebo_RMSPE.pdf"),
     width = 10, height = 6.5, useDingbats = FALSE)
 draw_placebo_figure()
 dev.off()
 
-png(file.path(figure_dir, "figure_B1_placebo_RMSPE.png"),
+png(file.path(figure_dir, "figure_C1_placebo_RMSPE.png"),
     width = 2000, height = 1300, res = 200)
 draw_placebo_figure()
 dev.off()
@@ -332,4 +336,6 @@ write.csv(data.frame(
                             key$country[match(pure_idx, key$index)],
                           names(pb_au$ratios) %in%
                             key$country[match(pure_idx, key$index)])),
-  file.path(figure_dir, "figure_B1_placebo_RMSPE.csv"), row.names = FALSE)
+  file.path(figure_dir, "figure_C1_placebo_RMSPE.csv"), row.names = FALSE)
+
+message("Tables and figures saved in: ", normalizePath(figure_dir))

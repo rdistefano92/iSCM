@@ -40,8 +40,9 @@ An object of class \code{"iscm_placebo"}: a data frame
   \code{ratio}, plus the target's \code{ratio}, \code{rank}, rank-based
   \code{p_value}, the smallest attainable p-value \code{min_p_value} and the
   conditioning diagnostics of \code{object} (\code{alpha}, \code{sigma_min},
-  \code{amplification}). \code{plot()} draws the ratios as in Figure C.1 of
-  the paper, with the target in red.
+  \code{amplification}), and the gaps of the target and of every placebo
+  (\code{gaps}). \code{\link[=plot.iscm_placebo]{plot()}} draws the ratios
+  as in Figure C.1 of the paper, or the gap paths.
 }
 \description{
 Implements the placebo (permutation) inference of Online Appendix B of Di
