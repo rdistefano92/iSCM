@@ -54,7 +54,7 @@ hull of the donors. With \code{lambda = 0} it coincides with
 Pass \code{lambda} through \code{\link{iscm}} and the other high-level
 functions, e.g. \code{iscm(..., estimator = scm_penalized, lambda = 0.1)}. The
 penalty is not cross-validated here; for the cross-validated estimator used in
-Online Appendix C of the paper, see the \pkg{pensynth} example in
+Section 7.1 of the paper, see the \pkg{pensynth} example in
 \code{system.file("examples", "germany_penalized.R", package = "iscm")}.
 }
 \examples{

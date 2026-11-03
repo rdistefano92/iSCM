@@ -142,13 +142,17 @@ pure controls than the one implied by iSCM.
 `simulate_iscm_covariates()` builds such a case. Units are matched on two
 observed covariates, `x1` and `x2`; the outcome also depends on an unobserved
 characteristic $u$. `TR` and `A1` are close to each other and share $u = 1$ (think
-of West Germany and Austria). The pure controls closest to `TR` in covariates,
-`C3` and `C4`, have $u = 0$; the pure controls with $u = 1$ are farther away. We
+of West Germany and Austria). Two pure controls close to `TR` in covariates,
+`C3` and `C4`, have $u = 0$; the pure controls with $u = 1$, `C1` and `C2`, lie on
+either side of the pair, farther from `TR` than `A1`. Without `A1`, the
+restricted optimizer can match the covariates equally well with `C1` and `C2`
+(right $u$) or with `C1`, `C3` and `C4` (wrong $u$), and which one it picks
+depends on the noise. We
 use the penalized SCM of Abadie and L'Hour (2021), `scm_penalized`, which
 favours donors close to the focal unit.
 
 ```{r cov-design}
-sim_c <- simulate_iscm_covariates(seed = 1)   # true effects: 2 on TR, 3 on A1
+sim_c <- simulate_iscm_covariates(seed = 4)   # true effects: 2 on TR, 3 on A1
 args <- list(sim_c$data, "unit", "time", "Y", "TR", "A1", sim_c$t0,
              predictors = c("x1", "x2"), estimator = scm_penalized)
 
@@ -164,9 +168,10 @@ c(truth        = 2,
 ```
 
 The weights show why. With `A1` available, `TR` is reproduced by `A1` and `C1`,
-both with the right unobserved characteristic; without it, the restricted SCM
-leans on `C3` and `C4`, which match the covariates but not $u$. The implied
-weights of iSCM recover a combination of pure controls with the right $u$:
+both with the right unobserved characteristic; without it, in this replication
+the restricted SCM leans on `C3` and `C4`, which match the covariates but not
+$u$. The implied weights of iSCM recover a combination of pure controls with the
+right $u$:
 
 ```{r cov-weights}
 round(rbind(unrestricted = fit_c$fits$TR$w[c("A1", sim_c$pure)],
@@ -174,9 +179,8 @@ round(rbind(unrestricted = fit_c$fits$TR$w[c("A1", sim_c$pure)],
             iSCM_implied = c(A1 = NA, fit_c$implied_weights[sim_c$pure])), 2)
 ```
 
-The simplified iSCM is biased too, because it fits `A1` on the pure controls
-only, and the restricted fit of `A1` runs into the same problem. iSCM also
-recovers the spillover:
+The simplified iSCM is accurate too, because the restricted fit of `A1` can rely
+on `C2`, which has the right $u$. iSCM also recovers the spillover:
 
 ```{r cov-gamma}
 mean(fit_c$effects["A1", ])   # true spillover = 3
@@ -219,66 +223,64 @@ round(fit$implied_weights, 3)
 
 ## 3. Choose the specification
 
-`iscm_compare()` runs the decision rule of Section 5.1: weights on the affected
-units (Step 1), predictor imbalance (Step 2), pre-intervention RMSPE, optionally
-on a validation window (Step 3), for the main treated unit and for each affected
-unit. If the restricted SCM is clearly worse, Step 4 chooses between the full
-and the simplified iSCM. Both express the counterfactual of the main treated unit
-as a weighted average of pure controls; the full iSCM amplifies the errors of the
-unrestricted fits by $\alpha$, the simplified iSCM avoids the amplification but
-relies on the restricted fits of the affected units (equations 4.6 and 4.7).
-Step 4 measures this trade-off where it is observable: it compares the
-pre-intervention RMSPE of the two implied counterfactuals and picks the smaller.
+`iscm_compare()` runs the decision rule of Section 5.1:
+
+1. **Step 1.** If the potentially affected units receive negligible weight in the
+   unrestricted fit, all specifications should agree: restricted SCM.
+2. **Steps 2 and 3.** Compare the predictor imbalance and the pre-intervention
+   RMSPE of the unrestricted and restricted fits. By default the RMSPE is
+   computed on a validation window: the weights are estimated on the first two
+   thirds of the pre-intervention period and evaluated on the last third. A ratio
+   below 1.25 means the fits are comparable; from 1.5 on, the restricted fit is
+   substantially worse. If neither the imbalance nor the RMSPE is substantially
+   worse, the rule keeps the restricted SCM, which avoids amplifying the
+   approximation errors.
+3. **Step 4.** Otherwise the iSCM correction is warranted. If the amplification
+   factor $\alpha$ (or $1/\sigma_{\min}$ with several affected units) is below
+   1.25, the full iSCM is applied. If not, the simplified iSCM is chosen when the
+   restricted fits of the affected units remain adequate; when they are poor
+   too, no variant can be considered reliable, and the set $M$ should be
+   reconsidered (Section 5.2).
+
+Steps 2 and 3 are also reported for each affected unit.
 
 ```{r compare-specs}
-cmp <- iscm_compare(sim$data, "unit", "time", "Y", "TR", "A1", sim$t0,
-                    validation = 8)
+cmp <- iscm_compare(sim$data, "unit", "time", "Y", "TR", "A1", sim$t0)
 cmp
 ```
 
-Here the restricted fit is worse on the validation window, and the implied
-counterfactuals of the full and the simplified iSCM fit almost equally well:
-
-```{r implied-rmspe}
-cmp$implied_rmspe
-```
-
-The rule recommends the `r sub("iscm_", "", cmp$recommendation)` iSCM, but the
-margin is small, and the comparison of the four specifications above shows that
-all except the unrestricted SCM are close to the truth in this design. In the
-covariate design, the restricted fit is much worse and the full iSCM's implied
-counterfactual fits far better than the simplified one's, so the rule recommends
-the full iSCM:
+In the covariate design the restricted fit is much worse and $\alpha$ is below
+1.25, so the rule recommends the full iSCM:
 
 ```{r compare-cov}
 cmp_c <- do.call(iscm_compare, args)
 cmp_c$recommendation
-print(cmp_c$comparison[, c("unit", "rmspe_unres", "rmspe_restr")], digits = 3)
+cmp_c$alpha
 ```
 
- The
-thresholds (`weight_tol`, `ratio_tol`, `alpha_tol`) can be changed; see
+The thresholds (`weight_tol`, `comparable_tol`, `worse_tol`, `alpha_tol`), the
+validation window and the standardisation of the imbalance can be changed; see
 `?iscm_compare`. The rule selects the specification to emphasise; all four should
-still be reported.
+still be reported. The printed output also shows the pre-intervention RMSPE of
+the counterfactuals implied by the full and the simplified iSCM, an additional
+diagnostic of the trade-off in equations (4.6) and (4.7); `rule = "implied_rmspe"`
+uses it in Step 4 instead of the threshold on $\alpha$.
 
 If the synthetic controls were estimated outside the package, use
 `iscm_compare_fits()` with their gaps and weights, or `iscm_decision()` with the
-summary figures. With the paper's German-reunification figures (restricted RMSPE
-260.74 against 119.07; implied counterfactuals 138.54 for the full and 144.73
-for the simplified iSCM):
+summary figures. With the German-reunification figures of Section 7 (validation
+RMSPE 358.09 for the restricted fit against 93.08, standardised imbalance 1.50
+against 0.26, $\alpha \approx 1.16$):
 
 ```{r decision}
-iscm_decision(rmspe_ratio = 260.74 / 119.07,
-              rmspe_full = 138.54, rmspe_simplified = 144.73)
+iscm_decision(rmspe_ratio = 358.09 / 93.08, imbalance_ratio = 1.50 / 0.26,
+              alpha = 1.16)
 ```
-
-The rule of earlier versions, which compared $\alpha$ with a fixed threshold, is
-still available with `rule = "alpha"` (and `alpha_tol`).
 
 ## 4. Placebo inference
 
 `iscm_placebo()` implements the in-space placebo analysis of
-[Online Appendix B](https://arxiv.org/abs/2403.17624).
+[Section 6](https://arxiv.org/abs/2403.17624).
 Outcomes of the affected units are purged of their estimated effects, the
 intervention is reassigned to each pure control in turn, and the post- to
 pre-intervention RMSPE ratios are compared. Run it for the main treated unit and
@@ -293,7 +295,7 @@ plot(pb, type = "gaps")
 iscm_placebo(fit, sim$data, "unit", "time", "Y", target = "A1")
 ```
 
-The printed result also reports what Online Appendix B recommends stating
+The printed result also reports what Section 6 recommends stating
 alongside the p-value: the smallest attainable p-value, here $1/7$ with six pure
 controls, and the conditioning of $\hat\Omega$, since the statistic of the
 target is tilted upwards when $\alpha$ is far from one.
@@ -409,10 +411,10 @@ dollars per year, against `-1,570` for the unrestricted SCM, and the spillover o
 Austria is about `-254`.
 
 The complete replication, with the restricted and simplified specifications, the
-decision rule, Tables 1 and C.1–C.2, Figure 1 and the placebo analysis (with
+decision rule, Tables 1–3, Figure 1 and the placebo analysis (with
 `iscm_purge()` and `iscm_placebo_fits()`), is in a script installed with the
 package; a second script reproduces the inclusive
-penalized SCM of Online Appendix C:
+penalized SCM of Section 7.1:
 
 ```{r scripts, eval = FALSE}
 system.file("examples", "germany_replication.R", package = "iscm")

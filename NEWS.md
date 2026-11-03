@@ -1,3 +1,51 @@
+# iscm 0.1.4
+
+Aligned with the version of the paper on arXiv (arXiv:2403.17624).
+
+## Decision rule (Section 5.1)
+
+`iscm_compare()`, `iscm_compare_fits()` and `iscm_decision()` now implement the
+rule exactly as described in Section 5.1 of the paper:
+
+* Steps 2-3: restricted / unrestricted ratios below `comparable_tol = 1.25` mean
+  the fits are comparable; from `worse_tol = 1.5` on, the restricted fit is
+  substantially worse. The iSCM correction is warranted only when the imbalance
+  or the RMSPE of the restricted fit is substantially worse; ratios in between
+  keep the restricted SCM, and the rationale says so.
+* Step 3: the RMSPE comparison uses by default a validation window, with weights
+  estimated on the first two thirds of the pre-intervention period and evaluated
+  on the last third (`validation = "auto"`). When available, the validation
+  RMSPE takes precedence over the in-sample one.
+* Step 2: the imbalance is by default the plain sum of absolute discrepancies
+  (`standardize = FALSE`); use `standardize = TRUE` when the predictors are on
+  very different scales.
+* Step 4: full iSCM when the amplification factor is below `alpha_tol = 1.25`;
+  otherwise simplified iSCM if the restricted fits of the potentially affected
+  units remain adequate, and the new outcome `"none_reliable"` if they do not.
+* The comparison of the implied counterfactuals introduced in 0.1.2 remains as a
+  reported diagnostic and as the alternative `rule = "implied_rmspe"`.
+  `rule = "alpha"`, `ratio_tol` and the `diag_dominant` argument of
+  `iscm_decision()` are removed.
+
+For the German application the recommendation is unchanged: full iSCM.
+
+## Simulation
+
+* In `simulate_iscm_covariates()` the pure control `C2` is closer to the affected
+  unit, so the cross-weights (about 0.5 and 0.3) and the amplification factor
+  (about 1.2) are similar to those of the German application, and the decision
+  rule of the paper selects the full iSCM in most replications. Over 100
+  replications the mean absolute error of the estimated effect is 0.05 for the
+  full iSCM and 0.93 for the restricted SCM. Examples use `seed = 4`.
+
+## References
+
+* References follow the numbering of the arXiv version: placebo analysis in
+  Section 6, penalized SCM in Section 7.1, Tables 2 and 3, Figures 2 and B.1,
+  Lemma A.1, implementation steps in Section 2.4. The replication scripts name
+  their output files accordingly (`table_2_weights.csv`, `table_3_effects.csv`,
+  `figure_B1_placebo_RMSPE.*`, `figure_2_penalized_SCM.*`).
+
 # iscm 0.1.3
 
 ## Plots

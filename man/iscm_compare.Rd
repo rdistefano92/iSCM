@@ -17,12 +17,13 @@ iscm_compare(
   estimator = scm_base,
   v = NULL,
   zvar = NULL,
-  validation = NULL,
+  validation = "auto",
   weight_tol = 0.05,
-  ratio_tol = 1.25,
-  alpha_tol = 2,
-  standardize = TRUE,
-  rule = c("implied_rmspe", "alpha"),
+  comparable_tol = 1.25,
+  worse_tol = 1.5,
+  alpha_tol = 1.25,
+  standardize = FALSE,
+  rule = c("paper", "implied_rmspe"),
   ...
 )
 }
@@ -57,88 +58,93 @@ that is neither treated nor affected.}
 \item{zvar}{Optional column name for a separate outcome-fit variable used only by
 \code{\link{scm_synth}} as \code{Z}; defaults to \code{outcome}.}
 
-\item{validation}{Optional integer: number of final pre-intervention periods to
-hold out as a validation window (the earlier pre-periods are used for
-training). If \code{NULL}, only the in-sample RMSPE comparison is reported.}
+\item{validation}{Validation window for Step 3: \code{"auto"} (default, the last
+third of the pre-intervention period, as in Section 5.1), a share in (0, 1),
+a number of final pre-intervention periods, or \code{NULL} for the in-sample
+comparison only.}
 
 \item{weight_tol}{Weight below which a potentially affected unit is treated as
-receiving negligible weight (Step 1 / Remark 2.1). Default \code{0.05}.}
+receiving negligible weight (Step 1). Default \code{0.05}.}
 
-\item{ratio_tol}{Factor above which the restricted specification is judged
-substantially worse than the unrestricted one on predictor imbalance or
-RMSPE, warranting the iSCM correction. Default \code{1.25}.}
+\item{comparable_tol, worse_tol}{Restricted / unrestricted ratios below which
+the fits are comparable (default \code{1.25}) and from which the restricted
+fit is substantially worse (default \code{1.5}), as in Section 5.1.}
 
-\item{alpha_tol}{Used only with \code{rule = "alpha"}: amplification above
-which the simplified iSCM is preferred. Default \code{2}. For \eqn{m > 2}
-the general bound \code{1/sigma_min} is used in place of \code{alpha}.}
+\item{alpha_tol}{Amplification below which the full iSCM can be applied safely.
+Default \code{1.25}, as in Section 5.1. For \eqn{m > 2} the general bound
+\code{1/sigma_min} is used in place of \code{alpha}.}
 
-\item{standardize}{Logical; if \code{TRUE} (default), each predictor's absolute
+\item{standardize}{Logical; if \code{TRUE}, each predictor's absolute
 discrepancy is divided by the predictor's cross-sectional standard deviation
 (computed across all units and held fixed across the unrestricted and
-restricted fits) before the Step 2 imbalances are aggregated, as recommended
-in Section 5.1 when the predictors are on very different scales. Set to
-\code{FALSE} for the unstandardised sum of absolute discrepancies.}
+restricted fits) before the Step 2 imbalances are aggregated. Default
+\code{FALSE}, the plain sum of Section 5.1; set it to \code{TRUE} when the
+predictors are measured on very different scales, as in the German
+application.}
 
-\item{rule}{How Step 4 chooses between the full and the simplified iSCM.
-\code{"implied_rmspe"} (default) compares the pre-intervention RMSPE of
-their implied pure-control counterfactuals; \code{"alpha"} uses the
-amplification threshold \code{alpha_tol} (the rule of earlier versions).}
+\item{rule}{\code{"paper"} (default) for the rule of Section 5.1, or
+\code{"implied_rmspe"} for the alternative Step 4 described above.}
 
 \item{...}{Further arguments passed to the backend.}
 }
 \value{
 An object of class \code{"iscm_compare"} with the per-step comparison
-  tables, the diagnostics, and a \code{recommendation} in
-  \code{c("restricted", "iscm_full", "iscm_simplified")} with a rationale.
-  Printing it shows the four steps in order. The \code{comparison} table has
-  one row per focal unit, so the rows of the affected units show whether
-  their own fits are adequate (Assumption 2.3) and how much they lose when
-  the main treated unit is excluded (relevant for the simplified iSCM).
+  table, the diagnostics, and a \code{recommendation} in
+  \code{c("restricted", "iscm_full", "iscm_simplified", "none_reliable")} with a
+  rationale.
 }
 \description{
-Runs the decision rule of Section 5.1 of Di Stefano and Mellace and
-returns a recommendation. For the main treated unit it (Step 1) reports the
-weights assigned to the potentially affected units, (Step 2) compares the
-predictor imbalance of the unrestricted and restricted specifications,
-(Step 3) compares their pre-intervention outcome RMSPE, optionally with a
-training/validation split, and (Step 4) chooses between the full and the
-simplified iSCM. Steps 1-3 are then repeated for each potentially affected unit,
-treating it as if it were the main treated unit, to assess Assumption 2.3 and
-whether the main treated unit is needed in its donor pool (relevant for the
-simplified iSCM).
+Runs the decision rule of Section 5.1 of Di Stefano and Mellace and returns
+a recommendation, together with every quantity the paper recommends
+reporting.
 }
 \details{
-\strong{Step 4.} Both versions of iSCM estimate the counterfactual of
-  the main treated unit with a weighted average of pure controls (Lemma 3.1,
-  Section 4.2). Their errors are \eqn{-\alpha(B^1_{sc} + \hat w_2 B^2_{sc})}
-  and \eqn{-(B^1_{sc} + \hat w_2 \tilde B^2_{sc})} for \eqn{m = 2}
-  (equations 4.6 and 4.7): the full iSCM amplifies the errors of the
-  unrestricted fits by \eqn{\alpha}, the simplified iSCM avoids the
-  amplification but uses the restricted fits of the affected units. The default
-  rule evaluates both expressions where they are observable, before the
-  intervention: it computes the pre-intervention RMSPE of the two implied
-  counterfactuals and recommends the one with the smaller value. For the
-  German application these are 138.54 (full) and 144.73 (simplified). This is
-  a diagnostic, not a guarantee: a good pre-intervention fit is neither
-  necessary nor sufficient for a good post-intervention counterfactual.
-  The values are returned in \code{implied_rmspe}, together with the
-  pre-intervention RMSPE of the restricted SCM, which can be compared with
-  them as in Section 3.1.
+\strong{The rule.}
+\describe{
+  \item{Step 1}{Weights of the potentially affected units in the unrestricted
+    fit of the main treated unit. If all are below \code{weight_tol}, the
+    specifications are expected to agree (Remark 2.1): restricted SCM.}
+  \item{Step 2}{Predictor imbalance of the unrestricted and restricted fits,
+    aggregated as the sum of the absolute discrepancies (standardised if
+    \code{standardize = TRUE}).}
+  \item{Step 3}{Pre-intervention RMSPE of the two fits, in-sample and, by
+    default, on a validation window: the weights are estimated on the first
+    two thirds of the pre-intervention period and evaluated on the last third.
+    A ratio below \code{comparable_tol} (25\%) means the fits are comparable; a
+    ratio of at least \code{worse_tol} (50\%) means the restricted fit is
+    substantially worse. When Steps 2 and 3 disagree, precedence goes to the
+    imbalance and to the validation comparison, so the in-sample RMSPE is used
+    only when no validation window is available.}
+  \item{Decision}{If neither the imbalance nor the RMSPE of the restricted fit
+    is substantially worse: restricted SCM. Otherwise the iSCM correction is
+    warranted, and Step 4 chooses the variant.}
+  \item{Step 4}{Amplification \eqn{\alpha} (\eqn{m = 2}) or
+    \eqn{1/\sigma_{\min}(\hat\Omega)}. Below \code{alpha_tol} (1.25): full iSCM.
+    Otherwise: simplified iSCM if the restricted fits of the potentially
+    affected units are not substantially worse than their unrestricted fits;
+    if they are, no variant can be considered reliable and the composition of
+    \eqn{M} should be reconsidered (Section 5.2).}
+}
+Steps 2-3 are computed for each potentially affected unit as well, treating it
+as if it were the main treated unit (\code{comparison} table).
 
-  \strong{Thresholds.} \code{weight_tol} and \code{ratio_tol} are package
-  defaults, not values prescribed by the paper. Section 5.1 regards fits as
-  comparable when their RMSPEs differ by less than 25\% and the restricted
-  fit as substantially worse above 50\%; with the default
-  \code{ratio_tol = 1.25} the range in between counts as "worse". The
-  recommendation is meant to select the specification to emphasise: Section
-  5.1 recommends reporting all four (unrestricted, restricted, full and
-  simplified iSCM).
+Ratios between 25\% and 50\% are neither comparable nor substantially worse in
+the terms of Section 5.1; the rule then keeps the restricted SCM and says so in
+the rationale. The recommendation selects the specification to emphasise:
+Section 5.1 recommends reporting all four (unrestricted, restricted, full and
+simplified iSCM).
+
+\strong{Alternative Step 4.} With \code{rule = "implied_rmspe"}, the choice
+between the full and the simplified iSCM compares instead the
+pre-intervention RMSPE of their implied pure-control counterfactuals, the
+observable counterparts of equations (4.6) and (4.7). These values are always
+reported in \code{implied_rmspe}, as an additional diagnostic.
 }
 \examples{
 sim <- simulate_iscm(n_affected = 1, n_pure = 6, tau = 2, spill = 3, seed = 7)
 cmp <- iscm_compare(sim$data, "unit", "time", "Y",
                     treated = sim$treated, affected = sim$affected,
-                    t0 = sim$t0, validation = 8)
+                    t0 = sim$t0)
 cmp                       # Steps 1-4 and the recommendation
 cmp$recommendation
 cmp$comparison            # imbalance and RMSPE for every focal unit

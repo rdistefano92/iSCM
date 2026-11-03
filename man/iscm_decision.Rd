@@ -2,72 +2,67 @@
 % Please edit documentation in R/compare.R
 \name{iscm_decision}
 \alias{iscm_decision}
-\title{Apply the iSCM decision rule to pre-computed comparison quantities}
+\title{Apply the iSCM decision rule to summary figures}
 \usage{
 iscm_decision(
   rmspe_ratio,
   imbalance_ratio = NA,
   alpha = NA,
   sigma_min = NA,
-  diag_dominant = NA,
+  affected_rmspe_ratio = NA,
   substantial = TRUE,
-  ratio_tol = 1.25,
-  alpha_tol = 2,
+  rule = c("paper", "implied_rmspe"),
+  comparable_tol = 1.25,
+  worse_tol = 1.5,
+  alpha_tol = 1.25,
   rmspe_full = NA,
   rmspe_simplified = NA
 )
 }
 \arguments{
-\item{rmspe_ratio}{Ratio of the restricted to the unrestricted pre-intervention
-(or validation) RMSPE of the main treated unit.}
+\item{rmspe_ratio}{Ratio of the restricted to the unrestricted RMSPE of the main
+treated unit: on the validation window if a training/validation split was
+used (it then takes precedence, as in Section 5.1), otherwise in-sample.}
 
 \item{imbalance_ratio}{Optional ratio of the restricted to the unrestricted
-predictor imbalance. Defaults to \code{NA} (ignored).}
+predictor imbalance (Step 2).}
 
-\item{alpha}{Amplification factor \eqn{\alpha} for \eqn{m = 2}; use
-\code{sigma_min} for the general case.}
+\item{alpha}{Amplification factor \eqn{\alpha} for \eqn{m = 2}.}
 
 \item{sigma_min}{Smallest singular value of \eqn{\hat\Omega}; its inverse is the
-general amplification bound. Used when \code{alpha} is \code{NA}.}
+general amplification bound, used when \code{alpha} is \code{NA}.}
 
-\item{diag_dominant}{Logical: is \eqn{\hat\Omega} strictly diagonally dominant?}
+\item{affected_rmspe_ratio}{Optional ratios of the restricted to the
+unrestricted RMSPE of the potentially affected units, used when the
+amplification is not below \code{alpha_tol} to choose between the
+simplified iSCM and "no reliable variant".}
 
 \item{substantial}{Logical: do the affected units receive substantial weight in
 the unrestricted fit (Step 1)? Defaults to \code{TRUE}.}
 
-\item{ratio_tol, alpha_tol}{Thresholds; see \code{\link{iscm_compare}}.}
+\item{rule, comparable_tol, worse_tol, alpha_tol}{See \code{\link{iscm_compare}}.}
 
-\item{rmspe_full, rmspe_simplified}{Pre-intervention RMSPE of the implied
-pure-control counterfactual of the main treated unit under the full and the
-simplified iSCM (reported by \code{\link{iscm_compare}} and
-\code{\link{iscm_compare_fits}} as \code{implied_rmspe}).}
+\item{rmspe_full, rmspe_simplified}{Used with \code{rule = "implied_rmspe"}:
+pre-intervention RMSPE of the implied counterfactuals of the full and the
+simplified iSCM.}
 }
 \value{
-A list of class \code{"iscm_decision"} with \code{recommendation} in
-  \code{c("restricted", "iscm_full", "iscm_simplified")} and a \code{rationale}.
+A list of class \code{"iscm_decision"} with a \code{recommendation} in
+  \code{c("restricted", "iscm_full", "iscm_simplified", "none_reliable")} and a
+  \code{rationale}.
 }
 \description{
-The recommendation logic of Section 5.1 of Di Stefano and Mellace,
-separated from any estimation so that it can be applied to fits produced by any
-estimator, including a fully customised \code{Synth} specification. Given the
-ratio of the restricted to the unrestricted pre-intervention fit and the
-pre-intervention RMSPE of the implied counterfactuals of the full and the
-simplified iSCM, it returns the recommended specification; see
+The decision rule of Section 5.1 of Di Stefano and Mellace, separated from
+any estimation, so that it can be applied to fits produced by any estimator,
+including a fully customised \code{Synth} specification. See
 \code{\link{iscm_compare}} for the rule.
 }
-\details{
-If \code{rmspe_full} and \code{rmspe_simplified} are not supplied, the choice
-between full and simplified iSCM falls back to the amplification threshold
-(\code{rule = "alpha"} in \code{\link{iscm_compare}}).
-}
 \examples{
-# German-reunification figures: the restricted SCM fits much worse
-# (RMSPE 260.74 vs 119.07); the implied counterfactual of the full iSCM has
-# pre-intervention RMSPE 138.54, that of the simplified iSCM 144.73.
-iscm_decision(rmspe_ratio = 260.74 / 119.07,
-              rmspe_full = 138.54, rmspe_simplified = 144.73)
+# German reunification (Section 7): restricted RMSPE 358.09 against 93.08 on
+# the validation window, imbalance 1.50 against 0.26, alpha = 1.16.
+iscm_decision(rmspe_ratio = 358.09 / 93.08, imbalance_ratio = 1.50 / 0.26,
+              alpha = 1.16)
 
-# Previous rule, based on the amplification factor only
-iscm_decision(rmspe_ratio = 260.74 / 119.07, alpha = 1.16,
-              diag_dominant = TRUE)
+# Large amplification and poor restricted fits of the affected unit
+iscm_decision(rmspe_ratio = 2, alpha = 1.8, affected_rmspe_ratio = 1.9)
 }

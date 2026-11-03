@@ -15,9 +15,10 @@ iscm_compare_fits(
   rmspe_val_unres = NULL,
   rmspe_val_restr = NULL,
   weight_tol = 0.05,
-  ratio_tol = 1.25,
-  alpha_tol = 2,
-  rule = c("implied_rmspe", "alpha")
+  comparable_tol = 1.25,
+  worse_tol = 1.5,
+  alpha_tol = 1.25,
+  rule = c("paper", "implied_rmspe")
 )
 }
 \arguments{
@@ -33,30 +34,31 @@ the affected units (Step 1).}
 \item{times}{Optional period labels aligned with the gap series.}
 
 \item{imbalance_unres, imbalance_restr}{Optional named numeric vectors of
-predictor imbalances per focal unit (Step 2). When the predictors are on
-very different scales, standardise each discrepancy by the predictor's
-cross-sectional standard deviation before aggregating (Section 5.1, Step 2),
-e.g. \code{s <- apply(cbind(X1, X0), 1, sd); sum(abs(X1 - X0 \%*\% w) / s)}
-from \code{Synth::dataprep}, using the same \code{s} for the unrestricted and
-restricted fits. Pass \code{sum(abs(X1 - X0 \%*\% w))} for the raw sum.}
+predictor imbalances per focal unit (Step 2): by default the sum of the
+absolute discrepancies, \code{sum(abs(X1 - X0 \%*\% w))}. When the
+predictors are on very different scales, standardise each discrepancy by
+the predictor's cross-sectional standard deviation before aggregating, e.g.
+\code{s <- apply(cbind(X1, X0), 1, sd); sum(abs(X1 - X0 \%*\% w) / s)} from
+\code{Synth::dataprep}, using the same \code{s} for both fits.}
 
 \item{rmspe_val_unres, rmspe_val_restr}{Optional named numeric vectors of
 out-of-sample (validation) RMSPEs per focal unit (Step 3 variant).}
 
-\item{weight_tol, ratio_tol, alpha_tol, rule}{Thresholds and rule; see
+\item{weight_tol, comparable_tol, worse_tol, alpha_tol, rule}{See
 \code{\link{iscm_compare}}.}
 }
 \value{
 An object of class \code{"iscm_compare"}.
 }
 \description{
-Version of \code{\link{iscm_compare}} that applies the Section 5.1 decision rule
-to synthetic controls estimated externally (e.g. the exact \code{Synth}
-specification of the empirical application), rather than re-estimating them with
-a package backend. The user supplies, for the main treated unit and each
-potentially affected unit, the full gap series of the unrestricted and
-restricted fits and the unrestricted donor weights; predictor imbalances and
-out-of-sample (validation) RMSPEs may be supplied as well.
+Version of \code{\link{iscm_compare}} that applies the decision rule of
+Section 5.1 to synthetic controls estimated externally (e.g. the exact
+\code{Synth} specification of the empirical application), rather than
+re-estimating them with a package backend. The user supplies, for the main
+treated unit and each potentially affected unit, the full gap series of the
+unrestricted and restricted fits and the unrestricted donor weights; predictor
+imbalances and out-of-sample (validation) RMSPEs may be supplied as well, and
+the validation RMSPEs then take precedence over the in-sample ones.
 }
 \examples{
 # Unrestricted and restricted fits estimated outside the package
@@ -64,7 +66,7 @@ sim <- simulate_iscm(n_affected = 1, n_pure = 6, tau = 2, spill = 3, seed = 7)
 Y <- with(sim$data, tapply(Y, list(time, unit), sum))
 pre <- seq_len(sim$t0)
 sc <- function(unit, donors) {
-  w <- scm_base(Y[pre, unit], Y[pre, donors])
+  w <- scm_base(Y[pre, unit], Y[pre, donors], standardize = FALSE)
   list(w = w, gap = as.numeric(Y[, unit] - Y[, donors] \%*\% w))
 }
 all_but <- function(u) setdiff(colnames(Y), u)

@@ -1,6 +1,6 @@
 #' In-space placebo test for iSCM
 #'
-#' Implements the placebo (permutation) inference of Online Appendix B of Di
+#' Implements the placebo (permutation) inference of Section 6 of Di
 #' Stefano and Mellace. Because the observed post-intervention outcomes of the
 #' focal units embed the effects of the intervention, the test statistics are
 #' computed from outcomes purged of the estimated iSCM effects. The statistic is
@@ -9,7 +9,7 @@
 #' yielding a placebo distribution and a rank-based p-value.
 #'
 #' Run it once for the main treated unit and once for each affected unit
-#' (\code{target}). As discussed in Online Appendix B, treat the result as a
+#' (\code{target}). As discussed in Section 6, treat the result as a
 #' transparent diagnostic rather than a test with formal size guarantees: with
 #' \eqn{|C|} pure controls the smallest attainable p-value is \eqn{1/(|C|+1)},
 #' and for large \eqn{\alpha} the statistic of the target is tilted upwards.
@@ -40,7 +40,7 @@
 #'   conditioning diagnostics of \code{object} (\code{alpha}, \code{sigma_min},
 #'   \code{amplification}), and the gaps of the target and of every placebo
 #'   (\code{gaps}). \code{\link[=plot.iscm_placebo]{plot()}} draws the ratios
-#'   as in Figure C.1 of the paper, or the gap paths.
+#'   as in Figure B.1 of the paper, or the gap paths.
 #'
 #' @seealso \code{\link{iscm_placebo_fits}} for synthetic controls estimated
 #'   outside the package; \code{\link{iscm}}.
@@ -106,7 +106,7 @@ iscm_placebo <- function(object, data, id, time, outcome, target = NULL,
 #' main treated unit and of the potentially affected units are replaced by the
 #' observed outcomes minus their iSCM estimates, \eqn{Y_{1t} - \hat\theta^{iSCM}_{1t}}
 #' and \eqn{Y_{it} - \hat\gamma^{iSCM}_{it}}. These are the corrected outcomes on
-#' which the placebo analysis of Online Appendix B is computed.
+#' which the placebo analysis of Section 6 is computed.
 #'
 #' Use it when the synthetic controls were estimated outside the package: estimate
 #' the synthetic control of each pure control on the purged data, with your own
@@ -231,7 +231,7 @@ iscm_placebo_fits <- function(object, data, id, time, outcome, placebo_weights,
   target
 }
 
-# Internal: placebo statistics of Online Appendix B, shared by iscm_placebo()
+# Internal: placebo statistics of Section 6, shared by iscm_placebo()
 # and iscm_placebo_fits(). Y is the T x J matrix of observed outcomes (columns
 # named by unit); placebo_weights holds the donor weights of each pure control.
 .placebo_core <- function(object, Y, times, target, placebo_weights) {
@@ -256,7 +256,7 @@ iscm_placebo_fits <- function(object, data, id, time, outcome, placebo_weights,
 
   # --- statistic for the target, with its own estimated weights ----------------
   # Purging the other focal units makes the post-intervention gap equal to the
-  # iSCM estimate (Online Appendix B); the denominator is the pre-intervention
+  # iSCM estimate (Section 6); the denominator is the pre-intervention
   # RMSPE of the target's unrestricted fit.
   tf <- object$fits[[match(target, object$focal)]]
   check_donors(tf$w, target)
@@ -304,7 +304,7 @@ iscm_placebo_fits <- function(object, data, id, time, outcome, placebo_weights,
 
 #' @export
 print.iscm_placebo <- function(x, digits = 3, ...) {
-  cat("iSCM in-space placebo test (Online Appendix B)\n")
+  cat("iSCM in-space placebo test (Section 6)\n")
   cat("  Target unit:", x$target, "\n")
   cat(sprintf("  RMSPE ratio: %.3f (rank %d of %d)\n", x$ratio, x$rank, x$n))
   cat(sprintf("  Placebo p-value: %.3f\n", x$p_value))

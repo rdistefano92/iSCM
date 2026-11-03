@@ -1,5 +1,5 @@
 # Internal: pre-intervention RMSPE of the implied pure-control counterfactuals of
-# the full and the simplified iSCM (Step 4 of the decision rule).
+# the full and the simplified iSCM (an additional Step 4 diagnostic).
 #
 # By the identity in the proof of Lemma 3.1, beta_t = Omega (Y_1t..Y_mt)' - P Y_Ct
 # holds in every period, so the first component of Omega^{-1} e_t, where e_t
@@ -17,104 +17,123 @@
   c(full = full, simplified = rmspe(simpl))
 }
 
-# Internal: the Section 5.1 recommendation logic, shared by iscm_compare(),
-# iscm_compare_fits() and iscm_decision().
-.iscm_decide <- function(substantial, worse_restricted, rule = "implied_rmspe",
-                         implied = c(full = NA_real_, simplified = NA_real_),
-                         diag_dominant = NA, amp = NA, alpha_tol = 2) {
-  if (!substantial) {
-    return(list(recommendation = "restricted",
-         rationale = "Potentially affected units receive negligible weight, so all specifications are expected to agree (Remark 2.1); the restricted SCM avoids amplification."))
-  }
-  if (!worse_restricted) {
-    return(list(recommendation = "restricted",
-         rationale = "The restricted specification fits about as well as the unrestricted one, so it is preferable: it avoids the amplification of approximation errors."))
-  }
-  if (rule == "implied_rmspe") {
-    if (isTRUE(implied[["full"]] <= implied[["simplified"]])) {
-      list(recommendation = "iscm_full",
-           rationale = sprintf("The affected units are essential for the fit. The implied pure-control counterfactual of the full iSCM fits the pre-intervention period better than that of the simplified iSCM (RMSPE %s vs %s), so the gain in fit outweighs the amplification.",
-                               format(signif(implied[["full"]], 4)),
-                               format(signif(implied[["simplified"]], 4))))
-    } else {
-      list(recommendation = "iscm_simplified",
-           rationale = sprintf("The affected units are essential for the fit. The implied pure-control counterfactual of the simplified iSCM fits the pre-intervention period better than that of the full iSCM (RMSPE %s vs %s), so avoiding the inversion step is preferable.",
-                               format(signif(implied[["simplified"]], 4)),
-                               format(signif(implied[["full"]], 4))))
-    }
-  } else if (isTRUE(diag_dominant) && isTRUE(amp <= alpha_tol)) {
-    list(recommendation = "iscm_full",
-         rationale = "The affected units are essential for the fit and the system is well conditioned, so the full iSCM can be applied safely.")
-  } else {
-    list(recommendation = "iscm_simplified",
-         rationale = "The affected units are essential but the system is poorly conditioned; the simplified iSCM removes the contamination without the inversion step.")
-  }
+# Internal: classify a restricted / unrestricted ratio (Section 5.1, Step 3):
+# comparable below `comparable_tol`, substantially worse from `worse_tol` on.
+.classify_ratio <- function(r, comparable_tol, worse_tol) {
+  if (is.null(r) || length(r) == 0L || is.na(r)) return(NA_character_)
+  if (r < comparable_tol) "comparable" else if (r >= worse_tol) "worse" else "intermediate"
 }
 
-#' Apply the iSCM decision rule to pre-computed comparison quantities
+# Internal: the decision rule of Section 5.1, shared by iscm_compare(),
+# iscm_compare_fits() and iscm_decision().
+#   substantial   Step 1: do the affected units receive substantial weight?
+#   imb_ratio     Step 2: restricted / unrestricted predictor imbalance (or NA)
+#   rmspe_ratio   Step 3: restricted / unrestricted RMSPE of the main unit; the
+#                 validation-split ratio when available, which takes precedence
+#                 over the in-sample one (Section 5.1)
+#   aff_ratios    restricted / unrestricted RMSPE of each affected unit
+#   amp           alpha (m = 2) or 1 / sigma_min
+.iscm_decide <- function(substantial, imb_ratio, rmspe_ratio, aff_ratios, amp,
+                         rule = "paper", implied = c(full = NA, simplified = NA),
+                         comparable_tol = 1.25, worse_tol = 1.5, alpha_tol = 1.25) {
+  out <- function(rec, why) list(recommendation = rec, rationale = why)
+  if (!substantial)
+    return(out("restricted", "Step 1: the potentially affected units receive negligible weight, so all specifications are expected to perform similarly (Remark 2.1), and the restricted SCM can be adopted directly."))
+
+  cls <- c(imbalance = .classify_ratio(imb_ratio, comparable_tol, worse_tol),
+           rmspe = .classify_ratio(rmspe_ratio, comparable_tol, worse_tol))
+  cls <- cls[!is.na(cls)]
+  if (!any(cls == "worse")) {
+    why <- "Steps 2-3: the restricted specification is not substantially worse than the unrestricted one, so the restricted SCM is preferable: it avoids the amplification of approximation errors (Section 4.4)."
+    if (any(cls == "intermediate"))
+      why <- paste(why, sprintf("Some ratios fall between %d%% and %d%%, a range Section 5.1 treats as neither comparable nor substantially worse: report the iSCM estimates alongside.",
+                                round(100 * (comparable_tol - 1)), round(100 * (worse_tol - 1))))
+    return(out("restricted", why))
+  }
+
+  if (rule == "implied_rmspe") {
+    if (isTRUE(implied[["full"]] <= implied[["simplified"]]))
+      return(out("iscm_full", sprintf("The restricted specification is substantially worse, so the iSCM correction is warranted. The implied pure-control counterfactual of the full iSCM fits the pre-intervention period better than that of the simplified iSCM (RMSPE %s vs %s).",
+                 format(signif(implied[["full"]], 4)), format(signif(implied[["simplified"]], 4)))))
+    return(out("iscm_simplified", sprintf("The restricted specification is substantially worse, so the iSCM correction is warranted. The implied pure-control counterfactual of the simplified iSCM fits the pre-intervention period better than that of the full iSCM (RMSPE %s vs %s).",
+               format(signif(implied[["simplified"]], 4)), format(signif(implied[["full"]], 4)))))
+  }
+
+  if (isTRUE(amp < alpha_tol))
+    return(out("iscm_full", sprintf("The restricted specification is substantially worse, so the iSCM correction is warranted; the amplification factor (%.3f) is below %s, so the full iSCM can be applied safely (Section 5.1, Step 4).",
+               amp, format(alpha_tol))))
+  aff_cls <- vapply(aff_ratios, .classify_ratio, character(1),
+                    comparable_tol = comparable_tol, worse_tol = worse_tol)
+  if (!any(aff_cls == "worse", na.rm = TRUE))
+    return(out("iscm_simplified", sprintf("The restricted specification is substantially worse, so the iSCM correction is warranted; the amplification factor (%.3f) is not below %s, and the restricted fits of the potentially affected units remain adequate, so the simplified iSCM is the more reliable choice (Section 5.1, Step 4).",
+               amp, format(alpha_tol))))
+  out("none_reliable", sprintf("The restricted specification is substantially worse, but the amplification factor (%.3f) is not below %s and the restricted fits of the potentially affected units are also poor: no variant can be considered reliable. Reconsider the composition of M (Section 5.2).",
+      amp, format(alpha_tol)))
+}
+
+.rec_label <- function(r) switch(r, restricted = "restricted SCM", iscm_full = "full iSCM",
+                                 iscm_simplified = "simplified iSCM",
+                                 none_reliable = "no variant can be considered reliable")
+
+#' Apply the iSCM decision rule to summary figures
 #'
-#' The recommendation logic of Section 5.1 of Di Stefano and Mellace,
-#' separated from any estimation so that it can be applied to fits produced by any
-#' estimator, including a fully customised \code{Synth} specification. Given the
-#' ratio of the restricted to the unrestricted pre-intervention fit and the
-#' pre-intervention RMSPE of the implied counterfactuals of the full and the
-#' simplified iSCM, it returns the recommended specification; see
+#' The decision rule of Section 5.1 of Di Stefano and Mellace, separated from
+#' any estimation, so that it can be applied to fits produced by any estimator,
+#' including a fully customised \code{Synth} specification. See
 #' \code{\link{iscm_compare}} for the rule.
 #'
-#' If \code{rmspe_full} and \code{rmspe_simplified} are not supplied, the choice
-#' between full and simplified iSCM falls back to the amplification threshold
-#' (\code{rule = "alpha"} in \code{\link{iscm_compare}}).
-#'
-#' @param rmspe_ratio Ratio of the restricted to the unrestricted pre-intervention
-#'   (or validation) RMSPE of the main treated unit.
+#' @param rmspe_ratio Ratio of the restricted to the unrestricted RMSPE of the main
+#'   treated unit: on the validation window if a training/validation split was
+#'   used (it then takes precedence, as in Section 5.1), otherwise in-sample.
 #' @param imbalance_ratio Optional ratio of the restricted to the unrestricted
-#'   predictor imbalance. Defaults to \code{NA} (ignored).
-#' @param alpha Amplification factor \eqn{\alpha} for \eqn{m = 2}; use
-#'   \code{sigma_min} for the general case.
+#'   predictor imbalance (Step 2).
+#' @param alpha Amplification factor \eqn{\alpha} for \eqn{m = 2}.
 #' @param sigma_min Smallest singular value of \eqn{\hat\Omega}; its inverse is the
-#'   general amplification bound. Used when \code{alpha} is \code{NA}.
-#' @param rmspe_full,rmspe_simplified Pre-intervention RMSPE of the implied
-#'   pure-control counterfactual of the main treated unit under the full and the
-#'   simplified iSCM (reported by \code{\link{iscm_compare}} and
-#'   \code{\link{iscm_compare_fits}} as \code{implied_rmspe}).
-#' @param diag_dominant Logical: is \eqn{\hat\Omega} strictly diagonally dominant?
+#'   general amplification bound, used when \code{alpha} is \code{NA}.
+#' @param affected_rmspe_ratio Optional ratios of the restricted to the
+#'   unrestricted RMSPE of the potentially affected units, used when the
+#'   amplification is not below \code{alpha_tol} to choose between the
+#'   simplified iSCM and "no reliable variant".
 #' @param substantial Logical: do the affected units receive substantial weight in
 #'   the unrestricted fit (Step 1)? Defaults to \code{TRUE}.
-#' @param ratio_tol,alpha_tol Thresholds; see \code{\link{iscm_compare}}.
+#' @param rule,comparable_tol,worse_tol,alpha_tol See \code{\link{iscm_compare}}.
+#' @param rmspe_full,rmspe_simplified Used with \code{rule = "implied_rmspe"}:
+#'   pre-intervention RMSPE of the implied counterfactuals of the full and the
+#'   simplified iSCM.
 #'
-#' @return A list of class \code{"iscm_decision"} with \code{recommendation} in
-#'   \code{c("restricted", "iscm_full", "iscm_simplified")} and a \code{rationale}.
+#' @return A list of class \code{"iscm_decision"} with a \code{recommendation} in
+#'   \code{c("restricted", "iscm_full", "iscm_simplified", "none_reliable")} and a
+#'   \code{rationale}.
 #'
 #' @examples
-#' # German-reunification figures: the restricted SCM fits much worse
-#' # (RMSPE 260.74 vs 119.07); the implied counterfactual of the full iSCM has
-#' # pre-intervention RMSPE 138.54, that of the simplified iSCM 144.73.
-#' iscm_decision(rmspe_ratio = 260.74 / 119.07,
-#'               rmspe_full = 138.54, rmspe_simplified = 144.73)
+#' # German reunification (Section 7): restricted RMSPE 358.09 against 93.08 on
+#' # the validation window, imbalance 1.50 against 0.26, alpha = 1.16.
+#' iscm_decision(rmspe_ratio = 358.09 / 93.08, imbalance_ratio = 1.50 / 0.26,
+#'               alpha = 1.16)
 #'
-#' # Previous rule, based on the amplification factor only
-#' iscm_decision(rmspe_ratio = 260.74 / 119.07, alpha = 1.16,
-#'               diag_dominant = TRUE)
+#' # Large amplification and poor restricted fits of the affected unit
+#' iscm_decision(rmspe_ratio = 2, alpha = 1.8, affected_rmspe_ratio = 1.9)
 #' @export
 iscm_decision <- function(rmspe_ratio, imbalance_ratio = NA, alpha = NA,
-                          sigma_min = NA, diag_dominant = NA, substantial = TRUE,
-                          ratio_tol = 1.25, alpha_tol = 2,
+                          sigma_min = NA, affected_rmspe_ratio = NA,
+                          substantial = TRUE, rule = c("paper", "implied_rmspe"),
+                          comparable_tol = 1.25, worse_tol = 1.5, alpha_tol = 1.25,
                           rmspe_full = NA, rmspe_simplified = NA) {
+  rule <- match.arg(rule)
   amp <- if (!is.na(alpha)) alpha else if (!is.na(sigma_min)) 1 / sigma_min else NA
-  worse <- (!is.na(imbalance_ratio) && imbalance_ratio >= ratio_tol) ||
-           (!is.na(rmspe_ratio) && rmspe_ratio >= ratio_tol)
-  rule <- if (!is.na(rmspe_full) && !is.na(rmspe_simplified)) "implied_rmspe" else "alpha"
-  out <- .iscm_decide(substantial, worse, rule,
-                      implied = c(full = rmspe_full, simplified = rmspe_simplified),
-                      diag_dominant = diag_dominant, amp = amp, alpha_tol = alpha_tol)
+  if (rule == "paper" && is.na(amp))
+    stop("Supply `alpha` (m = 2) or `sigma_min`.", call. = FALSE)
+  if (rule == "implied_rmspe" && (is.na(rmspe_full) || is.na(rmspe_simplified)))
+    stop("rule = \"implied_rmspe\" needs `rmspe_full` and `rmspe_simplified`.", call. = FALSE)
+  out <- .iscm_decide(substantial, imbalance_ratio, rmspe_ratio, affected_rmspe_ratio,
+                      amp, rule, c(full = rmspe_full, simplified = rmspe_simplified),
+                      comparable_tol, worse_tol, alpha_tol)
   structure(out, class = "iscm_decision")
 }
 
 #' @export
 print.iscm_decision <- function(x, ...) {
-  cat("Recommendation:", switch(x$recommendation,
-      restricted = "restricted SCM", iscm_full = "full iSCM",
-      iscm_simplified = "simplified iSCM"), "\n")
+  cat("Recommendation:", .rec_label(x$recommendation), "\n")
   cat(strwrap(x$rationale, exdent = 0), sep = "\n"); cat("\n")
   invisible(x)
 }
@@ -132,15 +151,62 @@ print.iscm_decision <- function(x, ...) {
   rmspe(fit$gap[vi])
 }
 
+# Internal: number of validation periods from the `validation` argument.
+.n_validation <- function(validation, n_pre) {
+  if (is.null(validation) || isFALSE(validation)) return(NULL)
+  if (identical(validation, "auto")) validation <- 1 / 3
+  if (!is.numeric(validation) || length(validation) != 1L || validation <= 0)
+    stop("`validation` must be \"auto\", a share in (0, 1), a number of periods, or NULL.",
+         call. = FALSE)
+  k <- if (validation < 1) round(n_pre * validation) else as.integer(validation)
+  if (k < 1L || k > n_pre - 2L)
+    stop("The validation window must leave at least two training periods.", call. = FALSE)
+  k
+}
+
+# Internal: assemble the "iscm_compare" object (shared by both front ends).
+.compare_object <- function(treated, affected, aff_weights, substantial, tab, diag,
+                            main_in_affected, implied, rule, validation, thresholds) {
+  main <- tab[tab$unit == treated, ]
+  use_val <- !is.null(main$rmspe_val_unres)
+  imb_ratio <- if (!is.null(main$imbalance_unres))
+    main$imbalance_restr / main$imbalance_unres else NA_real_
+  rmspe_ratio <- if (use_val) main$rmspe_val_restr / main$rmspe_val_unres else
+    main$rmspe_restr / main$rmspe_unres
+  aff <- tab[tab$unit != treated, , drop = FALSE]
+  aff_ratios <- if (use_val) aff$rmspe_val_restr / aff$rmspe_val_unres else
+    aff$rmspe_restr / aff$rmspe_unres
+  names(aff_ratios) <- aff$unit
+  amp <- if (!is.na(diag$alpha)) diag$alpha else diag$amplification
+  dec <- .iscm_decide(substantial, imb_ratio, rmspe_ratio, aff_ratios, amp, rule,
+                      implied, thresholds$comparable_tol, thresholds$worse_tol,
+                      thresholds$alpha_tol)
+  structure(list(
+    treated = treated, affected = affected,
+    step1_affected_weights = aff_weights, step1_substantial = substantial,
+    comparison = tab,
+    amplification = amp, alpha = diag$alpha, sigma_min = diag$sigma_min,
+    diag_dominant = diag$diag_dominant,
+    main_weight_in_affected = main_in_affected,
+    imbalance_ratio = imb_ratio, rmspe_ratio = rmspe_ratio,
+    rmspe_ratio_in_sample = main$rmspe_restr / main$rmspe_unres,
+    affected_rmspe_ratio = aff_ratios,
+    implied_rmspe = c(implied, restricted = main$rmspe_restr),
+    rule = rule, validation = validation, thresholds = thresholds,
+    recommendation = dec$recommendation, rationale = dec$rationale
+  ), class = "iscm_compare")
+}
+
 #' Decision rule from pre-computed fits
 #'
-#' Version of \code{\link{iscm_compare}} that applies the Section 5.1 decision rule
-#' to synthetic controls estimated externally (e.g. the exact \code{Synth}
-#' specification of the empirical application), rather than re-estimating them with
-#' a package backend. The user supplies, for the main treated unit and each
-#' potentially affected unit, the full gap series of the unrestricted and
-#' restricted fits and the unrestricted donor weights; predictor imbalances and
-#' out-of-sample (validation) RMSPEs may be supplied as well.
+#' Version of \code{\link{iscm_compare}} that applies the decision rule of
+#' Section 5.1 to synthetic controls estimated externally (e.g. the exact
+#' \code{Synth} specification of the empirical application), rather than
+#' re-estimating them with a package backend. The user supplies, for the main
+#' treated unit and each potentially affected unit, the full gap series of the
+#' unrestricted and restricted fits and the unrestricted donor weights; predictor
+#' imbalances and out-of-sample (validation) RMSPEs may be supplied as well, and
+#' the validation RMSPEs then take precedence over the in-sample ones.
 #'
 #' @param gaps_unres,gaps_restr Named lists of full gap series (unrestricted and
 #'   restricted fits), one element per focal unit, main treated first.
@@ -150,15 +216,15 @@ print.iscm_decision <- function(x, ...) {
 #' @param t0 Last pre-intervention period.
 #' @param times Optional period labels aligned with the gap series.
 #' @param imbalance_unres,imbalance_restr Optional named numeric vectors of
-#'   predictor imbalances per focal unit (Step 2). When the predictors are on
-#'   very different scales, standardise each discrepancy by the predictor's
-#'   cross-sectional standard deviation before aggregating (Section 5.1, Step 2),
-#'   e.g. \code{s <- apply(cbind(X1, X0), 1, sd); sum(abs(X1 - X0 \%*\% w) / s)}
-#'   from \code{Synth::dataprep}, using the same \code{s} for the unrestricted and
-#'   restricted fits. Pass \code{sum(abs(X1 - X0 \%*\% w))} for the raw sum.
+#'   predictor imbalances per focal unit (Step 2): by default the sum of the
+#'   absolute discrepancies, \code{sum(abs(X1 - X0 \%*\% w))}. When the
+#'   predictors are on very different scales, standardise each discrepancy by
+#'   the predictor's cross-sectional standard deviation before aggregating, e.g.
+#'   \code{s <- apply(cbind(X1, X0), 1, sd); sum(abs(X1 - X0 \%*\% w) / s)} from
+#'   \code{Synth::dataprep}, using the same \code{s} for both fits.
 #' @param rmspe_val_unres,rmspe_val_restr Optional named numeric vectors of
 #'   out-of-sample (validation) RMSPEs per focal unit (Step 3 variant).
-#' @param weight_tol,ratio_tol,alpha_tol,rule Thresholds and rule; see
+#' @param weight_tol,comparable_tol,worse_tol,alpha_tol,rule See
 #'   \code{\link{iscm_compare}}.
 #'
 #' @return An object of class \code{"iscm_compare"}.
@@ -171,7 +237,7 @@ print.iscm_decision <- function(x, ...) {
 #' Y <- with(sim$data, tapply(Y, list(time, unit), sum))
 #' pre <- seq_len(sim$t0)
 #' sc <- function(unit, donors) {
-#'   w <- scm_base(Y[pre, unit], Y[pre, donors])
+#'   w <- scm_base(Y[pre, unit], Y[pre, donors], standardize = FALSE)
 #'   list(w = w, gap = as.numeric(Y[, unit] - Y[, donors] %*% w))
 #' }
 #' all_but <- function(u) setdiff(colnames(Y), u)
@@ -187,8 +253,9 @@ print.iscm_decision <- function(x, ...) {
 iscm_compare_fits <- function(gaps_unres, gaps_restr, weights, t0, times = NULL,
                               imbalance_unres = NULL, imbalance_restr = NULL,
                               rmspe_val_unres = NULL, rmspe_val_restr = NULL,
-                              weight_tol = 0.05, ratio_tol = 1.25, alpha_tol = 2,
-                              rule = c("implied_rmspe", "alpha")) {
+                              weight_tol = 0.05, comparable_tol = 1.25,
+                              worse_tol = 1.5, alpha_tol = 1.25,
+                              rule = c("paper", "implied_rmspe")) {
   rule <- match.arg(rule)
   focal <- names(gaps_unres)
   treated <- focal[1]; affected <- focal[-1]
@@ -199,16 +266,15 @@ iscm_compare_fits <- function(gaps_unres, gaps_restr, weights, t0, times = NULL,
   cross <- lapply(focal, function(fi) weights[[fi]][names(weights[[fi]]) %in% focal])
   Omega <- build_omega(cross, focal)
   diag <- omega_diagnostics(Omega)
-  amp <- if (!is.na(diag$alpha)) diag$alpha else diag$amplification
 
   rows <- lapply(focal, function(fi) {
     out <- data.frame(unit = fi,
       role = if (fi == treated) "treated" else "affected",
-      rmspe_unres = rmspe(gaps_unres[[fi]][pre]),
-      rmspe_restr = rmspe(gaps_restr[[fi]][pre]),
       stringsAsFactors = FALSE)
     if (!is.null(imbalance_unres)) out$imbalance_unres <- imbalance_unres[[fi]]
     if (!is.null(imbalance_restr)) out$imbalance_restr <- imbalance_restr[[fi]]
+    out$rmspe_unres <- rmspe(gaps_unres[[fi]][pre])
+    out$rmspe_restr <- rmspe(gaps_restr[[fi]][pre])
     if (!is.null(rmspe_val_unres)) out$rmspe_val_unres <- rmspe_val_unres[[fi]]
     if (!is.null(rmspe_val_restr)) out$rmspe_val_restr <- rmspe_val_restr[[fi]]
     out
@@ -223,105 +289,94 @@ iscm_compare_fits <- function(gaps_unres, gaps_restr, weights, t0, times = NULL,
     wa <- weights[[a]]; if (treated %in% names(wa)) wa[[treated]] else 0
   }, numeric(1))
 
-  main <- tab[tab$unit == treated, ]
-  imb_ratio <- if (!is.null(imbalance_unres))
-    main$imbalance_restr / main$imbalance_unres else NA_real_
-  rmspe_ratio <- if (!is.null(rmspe_val_unres))
-    main$rmspe_val_restr / main$rmspe_val_unres else main$rmspe_restr / main$rmspe_unres
-  worse <- (!is.na(imb_ratio) && imb_ratio >= ratio_tol) || (rmspe_ratio >= ratio_tol)
-
   E_unres <- vapply(focal, function(fi) as.numeric(gaps_unres[[fi]][pre]),
                     numeric(sum(pre)))
   E_restr <- vapply(focal, function(fi) as.numeric(gaps_restr[[fi]][pre]),
                     numeric(sum(pre)))
   implied <- .implied_pre_rmspe(Omega, matrix(E_unres, ncol = length(focal)),
                                 matrix(E_restr, ncol = length(focal)), aff_weights)
-  dec <- .iscm_decide(substantial, worse, rule, implied = implied,
-                      diag_dominant = diag$diag_dominant, amp = amp,
-                      alpha_tol = alpha_tol)
 
-  structure(list(
-    treated = treated, affected = affected,
-    step1_affected_weights = aff_weights, step1_substantial = substantial,
-    comparison = tab, amplification = amp, alpha = diag$alpha,
-    sigma_min = diag$sigma_min, diag_dominant = diag$diag_dominant,
-    main_weight_in_affected = main_in_affected,
-    imbalance_ratio = imb_ratio, rmspe_ratio = rmspe_ratio,
-    implied_rmspe = c(implied, restricted = main$rmspe_restr), rule = rule,
-    validation = if (is.null(rmspe_val_unres)) NULL else TRUE,
-    recommendation = dec$recommendation, rationale = dec$rationale
-  ), class = "iscm_compare")
+  .compare_object(treated, affected, aff_weights, substantial, tab, diag,
+                  main_in_affected, implied, rule,
+                  validation = if (is.null(rmspe_val_unres)) NULL else "supplied",
+                  thresholds = list(weight_tol = weight_tol, comparable_tol = comparable_tol,
+                                    worse_tol = worse_tol, alpha_tol = alpha_tol))
 }
 
 #' Data-driven choice among restricted SCM and full/simplified iSCM
 #'
-#' Runs the decision rule of Section 5.1 of Di Stefano and Mellace and
-#' returns a recommendation. For the main treated unit it (Step 1) reports the
-#' weights assigned to the potentially affected units, (Step 2) compares the
-#' predictor imbalance of the unrestricted and restricted specifications,
-#' (Step 3) compares their pre-intervention outcome RMSPE, optionally with a
-#' training/validation split, and (Step 4) chooses between the full and the
-#' simplified iSCM. Steps 1-3 are then repeated for each potentially affected unit,
-#' treating it as if it were the main treated unit, to assess Assumption 2.3 and
-#' whether the main treated unit is needed in its donor pool (relevant for the
+#' Runs the decision rule of Section 5.1 of Di Stefano and Mellace and returns
+#' a recommendation, together with every quantity the paper recommends
+#' reporting.
+#'
+#' \strong{The rule.}
+#' \describe{
+#'   \item{Step 1}{Weights of the potentially affected units in the unrestricted
+#'     fit of the main treated unit. If all are below \code{weight_tol}, the
+#'     specifications are expected to agree (Remark 2.1): restricted SCM.}
+#'   \item{Step 2}{Predictor imbalance of the unrestricted and restricted fits,
+#'     aggregated as the sum of the absolute discrepancies (standardised if
+#'     \code{standardize = TRUE}).}
+#'   \item{Step 3}{Pre-intervention RMSPE of the two fits, in-sample and, by
+#'     default, on a validation window: the weights are estimated on the first
+#'     two thirds of the pre-intervention period and evaluated on the last third.
+#'     A ratio below \code{comparable_tol} (25\%) means the fits are comparable; a
+#'     ratio of at least \code{worse_tol} (50\%) means the restricted fit is
+#'     substantially worse. When Steps 2 and 3 disagree, precedence goes to the
+#'     imbalance and to the validation comparison, so the in-sample RMSPE is used
+#'     only when no validation window is available.}
+#'   \item{Decision}{If neither the imbalance nor the RMSPE of the restricted fit
+#'     is substantially worse: restricted SCM. Otherwise the iSCM correction is
+#'     warranted, and Step 4 chooses the variant.}
+#'   \item{Step 4}{Amplification \eqn{\alpha} (\eqn{m = 2}) or
+#'     \eqn{1/\sigma_{\min}(\hat\Omega)}. Below \code{alpha_tol} (1.25): full iSCM.
+#'     Otherwise: simplified iSCM if the restricted fits of the potentially
+#'     affected units are not substantially worse than their unrestricted fits;
+#'     if they are, no variant can be considered reliable and the composition of
+#'     \eqn{M} should be reconsidered (Section 5.2).}
+#' }
+#' Steps 2-3 are computed for each potentially affected unit as well, treating it
+#' as if it were the main treated unit (\code{comparison} table).
+#'
+#' Ratios between 25\% and 50\% are neither comparable nor substantially worse in
+#' the terms of Section 5.1; the rule then keeps the restricted SCM and says so in
+#' the rationale. The recommendation selects the specification to emphasise:
+#' Section 5.1 recommends reporting all four (unrestricted, restricted, full and
 #' simplified iSCM).
 #'
+#' \strong{Alternative Step 4.} With \code{rule = "implied_rmspe"}, the choice
+#' between the full and the simplified iSCM compares instead the
+#' pre-intervention RMSPE of their implied pure-control counterfactuals, the
+#' observable counterparts of equations (4.6) and (4.7). These values are always
+#' reported in \code{implied_rmspe}, as an additional diagnostic.
+#'
 #' @inheritParams iscm
-#' @param validation Optional integer: number of final pre-intervention periods to
-#'   hold out as a validation window (the earlier pre-periods are used for
-#'   training). If \code{NULL}, only the in-sample RMSPE comparison is reported.
+#' @param validation Validation window for Step 3: \code{"auto"} (default, the last
+#'   third of the pre-intervention period, as in Section 5.1), a share in (0, 1),
+#'   a number of final pre-intervention periods, or \code{NULL} for the in-sample
+#'   comparison only.
 #' @param weight_tol Weight below which a potentially affected unit is treated as
-#'   receiving negligible weight (Step 1 / Remark 2.1). Default \code{0.05}.
-#' @param ratio_tol Factor above which the restricted specification is judged
-#'   substantially worse than the unrestricted one on predictor imbalance or
-#'   RMSPE, warranting the iSCM correction. Default \code{1.25}.
-#' @param rule How Step 4 chooses between the full and the simplified iSCM.
-#'   \code{"implied_rmspe"} (default) compares the pre-intervention RMSPE of
-#'   their implied pure-control counterfactuals; \code{"alpha"} uses the
-#'   amplification threshold \code{alpha_tol} (the rule of earlier versions).
-#' @param alpha_tol Used only with \code{rule = "alpha"}: amplification above
-#'   which the simplified iSCM is preferred. Default \code{2}. For \eqn{m > 2}
-#'   the general bound \code{1/sigma_min} is used in place of \code{alpha}.
-#' @param standardize Logical; if \code{TRUE} (default), each predictor's absolute
+#'   receiving negligible weight (Step 1). Default \code{0.05}.
+#' @param comparable_tol,worse_tol Restricted / unrestricted ratios below which
+#'   the fits are comparable (default \code{1.25}) and from which the restricted
+#'   fit is substantially worse (default \code{1.5}), as in Section 5.1.
+#' @param alpha_tol Amplification below which the full iSCM can be applied safely.
+#'   Default \code{1.25}, as in Section 5.1. For \eqn{m > 2} the general bound
+#'   \code{1/sigma_min} is used in place of \code{alpha}.
+#' @param standardize Logical; if \code{TRUE}, each predictor's absolute
 #'   discrepancy is divided by the predictor's cross-sectional standard deviation
 #'   (computed across all units and held fixed across the unrestricted and
-#'   restricted fits) before the Step 2 imbalances are aggregated, as recommended
-#'   in Section 5.1 when the predictors are on very different scales. Set to
-#'   \code{FALSE} for the unstandardised sum of absolute discrepancies.
-#'
-#' @details \strong{Step 4.} Both versions of iSCM estimate the counterfactual of
-#'   the main treated unit with a weighted average of pure controls (Lemma 3.1,
-#'   Section 4.2). Their errors are \eqn{-\alpha(B^1_{sc} + \hat w_2 B^2_{sc})}
-#'   and \eqn{-(B^1_{sc} + \hat w_2 \tilde B^2_{sc})} for \eqn{m = 2}
-#'   (equations 4.6 and 4.7): the full iSCM amplifies the errors of the
-#'   unrestricted fits by \eqn{\alpha}, the simplified iSCM avoids the
-#'   amplification but uses the restricted fits of the affected units. The default
-#'   rule evaluates both expressions where they are observable, before the
-#'   intervention: it computes the pre-intervention RMSPE of the two implied
-#'   counterfactuals and recommends the one with the smaller value. For the
-#'   German application these are 138.54 (full) and 144.73 (simplified). This is
-#'   a diagnostic, not a guarantee: a good pre-intervention fit is neither
-#'   necessary nor sufficient for a good post-intervention counterfactual.
-#'   The values are returned in \code{implied_rmspe}, together with the
-#'   pre-intervention RMSPE of the restricted SCM, which can be compared with
-#'   them as in Section 3.1.
-#'
-#'   \strong{Thresholds.} \code{weight_tol} and \code{ratio_tol} are package
-#'   defaults, not values prescribed by the paper. Section 5.1 regards fits as
-#'   comparable when their RMSPEs differ by less than 25\% and the restricted
-#'   fit as substantially worse above 50\%; with the default
-#'   \code{ratio_tol = 1.25} the range in between counts as "worse". The
-#'   recommendation is meant to select the specification to emphasise: Section
-#'   5.1 recommends reporting all four (unrestricted, restricted, full and
-#'   simplified iSCM).
+#'   restricted fits) before the Step 2 imbalances are aggregated. Default
+#'   \code{FALSE}, the plain sum of Section 5.1; set it to \code{TRUE} when the
+#'   predictors are measured on very different scales, as in the German
+#'   application.
+#' @param rule \code{"paper"} (default) for the rule of Section 5.1, or
+#'   \code{"implied_rmspe"} for the alternative Step 4 described above.
 #'
 #' @return An object of class \code{"iscm_compare"} with the per-step comparison
-#'   tables, the diagnostics, and a \code{recommendation} in
-#'   \code{c("restricted", "iscm_full", "iscm_simplified")} with a rationale.
-#'   Printing it shows the four steps in order. The \code{comparison} table has
-#'   one row per focal unit, so the rows of the affected units show whether
-#'   their own fits are adequate (Assumption 2.3) and how much they lose when
-#'   the main treated unit is excluded (relevant for the simplified iSCM).
+#'   table, the diagnostics, and a \code{recommendation} in
+#'   \code{c("restricted", "iscm_full", "iscm_simplified", "none_reliable")} with a
+#'   rationale.
 #'
 #' @seealso \code{\link{iscm_compare_fits}} and \code{\link{iscm_decision}} for
 #'   fits estimated outside the package; \code{\link{iscm_sensitivity}} for the
@@ -331,17 +386,17 @@ iscm_compare_fits <- function(gaps_unres, gaps_restr, weights, t0, times = NULL,
 #' sim <- simulate_iscm(n_affected = 1, n_pure = 6, tau = 2, spill = 3, seed = 7)
 #' cmp <- iscm_compare(sim$data, "unit", "time", "Y",
 #'                     treated = sim$treated, affected = sim$affected,
-#'                     t0 = sim$t0, validation = 8)
+#'                     t0 = sim$t0)
 #' cmp                       # Steps 1-4 and the recommendation
 #' cmp$recommendation
 #' cmp$comparison            # imbalance and RMSPE for every focal unit
 #' @export
 iscm_compare <- function(data, id, time, outcome, treated, affected, t0,
                          predictors = NULL, pure = NULL, estimator = scm_base,
-                         v = NULL, zvar = NULL, validation = NULL,
-                         weight_tol = 0.05, ratio_tol = 1.25, alpha_tol = 2,
-                         standardize = TRUE, rule = c("implied_rmspe", "alpha"),
-                         ...) {
+                         v = NULL, zvar = NULL, validation = "auto",
+                         weight_tol = 0.05, comparable_tol = 1.25, worse_tol = 1.5,
+                         alpha_tol = 1.25, standardize = FALSE,
+                         rule = c("paper", "implied_rmspe"), ...) {
   rule <- match.arg(rule)
   pm <- .panel_matrix(data, id, time, outcome)
   ids <- pm$ids; times <- pm$times; Y <- pm$Y
@@ -349,59 +404,51 @@ iscm_compare <- function(data, id, time, outcome, treated, affected, t0,
   focal <- c(treated, affected)
   if (is.null(pure)) pure <- setdiff(ids, focal) else pure <- as.character(pure)
   pre <- times[times <= t0]
+  n_val <- .n_validation(validation, length(pre))
   Xmat <- .predictor_matrix(data, id, time, outcome, predictors, ids, times, pre)
   zcol <- if (is.null(zvar)) outcome else zvar
   Zmat <- .panel_matrix(data, id, time, zcol)$Y[which(times %in% pre), , drop = FALSE]
 
-  # Step 2 predictor imbalance. When the predictors are on very different scales
-  # (as in the German-reunification application), Section 5.1 Step 2 prescribes
-  # standardising each predictor by its cross-sectional standard deviation before
-  # aggregating the absolute discrepancies. The scale is fixed across all units
-  # and reused for the unrestricted and restricted fits, so the two imbalances
-  # remain comparable. Set standardize = FALSE for the raw sum.
+  # Step 2 predictor imbalance: sum of absolute discrepancies, optionally
+  # standardised by each predictor's cross-sectional standard deviation, held
+  # fixed across the unrestricted and restricted fits.
   if (standardize) {
     sdv <- apply(Xmat, 1L, stats::sd)
     sdv[sdv == 0 | !is.finite(sdv)] <- 1
   } else {
     sdv <- rep(1, nrow(Xmat))
   }
-  imbalance <- function(focal_id, donor_ids) {
-    w <- .fit_one(focal_id, donor_ids, Xmat, Y, Zmat, v, estimator, ...)$w
+  fit_unit <- function(focal_id, donor_ids)
+    .fit_one(focal_id, donor_ids, Xmat, Y, Zmat, v, estimator, ...)
+  imbalance <- function(focal_id, donor_ids, w)
     sum(abs(Xmat[, focal_id] - Xmat[, donor_ids, drop = FALSE] %*% w) / sdv)
-  }
-  fit_gap <- function(focal_id, donor_ids) {
-    .fit_one(focal_id, donor_ids, Xmat, Y, Zmat, v, estimator, ...)$gap
-  }
 
   # ---- the iSCM fit for Omega / amplification (Step 4) ------------------------
   fit <- iscm(data, id, time, outcome, treated, affected, t0,
               predictors = predictors, pure = pure, estimator = estimator,
               v = v, zvar = zvar, ...)
-  diag <- fit$diagnostics
-  amp <- if (!is.na(diag$alpha)) diag$alpha else diag$amplification
 
   # ---- per-unit comparison (main treated first, then each affected) ----------
-  if (!is.null(validation)) {
-    valid <- utils::tail(pre, validation); train <- setdiff(pre, valid)
+  if (!is.null(n_val)) {
+    valid <- utils::tail(pre, n_val); train <- setdiff(pre, valid)
   }
   gaps_re <- list()
   rows <- lapply(focal, function(fi) {
     donors_un <- setdiff(ids, fi)
-    donors_re <- pure
-    g_un <- fit_gap(fi, donors_un); g_re <- fit_gap(fi, donors_re)
-    gaps_re[[fi]] <<- g_re
+    f_un <- fit_unit(fi, donors_un); f_re <- fit_unit(fi, pure)
+    gaps_re[[fi]] <<- f_re$gap
     out <- data.frame(
       unit = fi,
       role = if (fi == treated) "treated" else "affected",
-      imbalance_unres = imbalance(fi, donors_un),
-      imbalance_restr = imbalance(fi, donors_re),
-      rmspe_unres = rmspe(g_un[times <= t0]),
-      rmspe_restr = rmspe(g_re[times <= t0]),
+      imbalance_unres = imbalance(fi, donors_un, f_un$w),
+      imbalance_restr = imbalance(fi, pure, f_re$w),
+      rmspe_unres = rmspe(f_un$gap[times <= t0]),
+      rmspe_restr = rmspe(f_re$gap[times <= t0]),
       stringsAsFactors = FALSE)
-    if (!is.null(validation)) {
+    if (!is.null(n_val)) {
       out$rmspe_val_unres <- .refit_window(fi, donors_un, data, id, time, outcome,
         predictors, ids, times, train, valid, Y, v, estimator, zvar, ...)
-      out$rmspe_val_restr <- .refit_window(fi, donors_re, data, id, time, outcome,
+      out$rmspe_val_restr <- .refit_window(fi, pure, data, id, time, outcome,
         predictors, ids, times, train, valid, Y, v, estimator, zvar, ...)
     }
     out
@@ -415,49 +462,31 @@ iscm_compare <- function(data, id, time, outcome, treated, affected, t0,
   substantial <- any(aff_weights >= weight_tol)
 
   # For each affected unit: weight it gives to the main treated unit (whether the
-  # simplified iSCM is costless for it, Section 5.1 / Corollary 4.2).
+  # simplified iSCM is costless for it, Corollary 4.2).
   main_in_affected <- vapply(affected, function(a) {
     wa <- fit$fits[[match(a, focal)]]$w
     if (treated %in% names(wa)) wa[[treated]] else 0
   }, numeric(1))
 
-  # ---- recommendation --------------------------------------------------------
-  main <- tab[tab$unit == treated, ]
-  imb_ratio <- main$imbalance_restr / main$imbalance_unres
-  rmspe_ratio <- if (!is.null(validation))
-    main$rmspe_val_restr / main$rmspe_val_unres
-  else main$rmspe_restr / main$rmspe_unres
-  worse_restricted <- (imb_ratio >= ratio_tol) || (rmspe_ratio >= ratio_tol)
-
-  # ---- Step 4: implied counterfactuals of full vs simplified iSCM -----------
+  # ---- additional Step 4 diagnostic: implied counterfactuals -----------------
   pre_idx <- which(times <= t0)
   E_unres <- fit$gaps_unrestricted[pre_idx, focal, drop = FALSE]
   E_restr <- vapply(focal, function(fi) gaps_re[[fi]][pre_idx],
                     numeric(length(pre_idx)))
   implied <- .implied_pre_rmspe(fit$Omega, E_unres,
                                 matrix(E_restr, ncol = length(focal)), aff_weights)
-  dec <- .iscm_decide(substantial, worse_restricted, rule, implied = implied,
-                      diag_dominant = diag$diag_dominant, amp = amp,
-                      alpha_tol = alpha_tol)
-  rec <- dec$recommendation; why <- dec$rationale
 
-  structure(list(
-    treated = treated, affected = affected,
-    step1_affected_weights = aff_weights,
-    step1_substantial = substantial,
-    comparison = tab,
-    amplification = amp, alpha = diag$alpha, sigma_min = diag$sigma_min,
-    diag_dominant = diag$diag_dominant,
-    main_weight_in_affected = main_in_affected,
-    imbalance_ratio = imb_ratio, rmspe_ratio = rmspe_ratio,
-    implied_rmspe = c(implied, restricted = main$rmspe_restr), rule = rule,
-    validation = validation,
-    recommendation = rec, rationale = why
-  ), class = "iscm_compare")
+  .compare_object(treated, affected, aff_weights, substantial, tab, fit$diagnostics,
+                  main_in_affected, implied, rule,
+                  validation = if (is.null(n_val)) NULL else
+                    list(train = range(train), valid = range(valid)),
+                  thresholds = list(weight_tol = weight_tol, comparable_tol = comparable_tol,
+                                    worse_tol = worse_tol, alpha_tol = alpha_tol))
 }
 
 #' @export
 print.iscm_compare <- function(x, digits = 3, ...) {
+  th <- x$thresholds
   cat("iSCM specification comparison (Section 5.1)\n")
   cat("  Main treated unit:", x$treated, "\n\n")
   cat("Step 1 - weights on affected units in the unrestricted main fit:\n")
@@ -466,24 +495,28 @@ print.iscm_compare <- function(x, digits = 3, ...) {
     cat("  -> all below weight_tol: affected units carry little contamination.\n")
   cat("\nSteps 2-3 - predictor imbalance and pre-intervention RMSPE:\n")
   print(format(x$comparison, digits = digits))
-  cat(sprintf("\nRatios (restricted / unrestricted, main unit): imbalance = %s, RMSPE = %.2f\n",
+  if (is.list(x$validation))
+    cat(sprintf("  (validation: weights estimated on %s-%s, RMSPE evaluated on %s-%s)\n",
+                x$validation$train[1], x$validation$train[2],
+                x$validation$valid[1], x$validation$valid[2]))
+  cat(sprintf("\nRatios restricted / unrestricted, main unit: imbalance = %s, RMSPE%s = %.2f\n",
               if (is.na(x$imbalance_ratio)) "n/a" else sprintf("%.2f", x$imbalance_ratio),
-              x$rmspe_ratio))
-  cat(sprintf("\nStep 4 - conditioning: %s = %.3f | sigma_min = %.3f | diag. dominant = %s\n",
+              if (is.null(x$validation)) "" else " (validation)", x$rmspe_ratio))
+  cat(sprintf("  comparable below %.2f, substantially worse from %.2f\n",
+              th$comparable_tol, th$worse_tol))
+  cat(sprintf("\nStep 4 - amplification: %s = %.3f (full iSCM below %s) | sigma_min = %.3f\n",
               if (!is.na(x$alpha)) "alpha" else "1/sigma_min",
-              x$amplification, x$sigma_min, x$diag_dominant))
-  if (!is.null(x$implied_rmspe)) {
-    ir <- x$implied_rmspe
-    cat(sprintf("  Pre-intervention RMSPE of the implied counterfactual: full iSCM = %s | simplified iSCM = %s | restricted SCM = %s\n",
-                format(signif(ir[["full"]], 4)), format(signif(ir[["simplified"]], 4)),
-                format(signif(ir[["restricted"]], 4))))
-    if (identical(x$rule, "alpha"))
-      cat("  (rule = \"alpha\": the choice uses the amplification threshold)\n")
-  }
-  cat("\nRecommendation:", switch(x$recommendation,
-      restricted = "restricted SCM",
-      iscm_full = "full iSCM",
-      iscm_simplified = "simplified iSCM"), "\n")
+              x$amplification, format(th$alpha_tol), x$sigma_min))
+  cat("  Restricted / unrestricted RMSPE of the affected units:",
+      paste(sprintf("%s = %.2f", names(x$affected_rmspe_ratio), x$affected_rmspe_ratio),
+            collapse = ", "), "\n")
+  ir <- x$implied_rmspe
+  cat(sprintf("  Pre-intervention RMSPE of the implied counterfactual: full iSCM = %s | simplified iSCM = %s | restricted SCM = %s\n",
+              format(signif(ir[["full"]], 4)), format(signif(ir[["simplified"]], 4)),
+              format(signif(ir[["restricted"]], 4))))
+  if (identical(x$rule, "implied_rmspe"))
+    cat("  (rule = \"implied_rmspe\": Step 4 compares the implied counterfactuals)\n")
+  cat("\nRecommendation:", .rec_label(x$recommendation), "\n")
   cat(strwrap(x$rationale, indent = 2, exdent = 2), sep = "\n")
   cat("\n")
   invisible(x)

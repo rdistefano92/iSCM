@@ -36,7 +36,7 @@ Draws the result of \code{\link{iscm_placebo}} or
 \code{\link{iscm_placebo_fits}} with \pkg{ggplot2}.
 \describe{
   \item{\code{"ratios"}}{(default) the post- to pre-intervention RMSPE ratios
-    of the target and of every placebo, as in Figure C.1 of the paper.}
+    of the target and of every placebo, as in Figure B.1 of the paper.}
   \item{\code{"gaps"}}{the gap paths of the target and of the placebos, on the
     purged outcomes.}
 }

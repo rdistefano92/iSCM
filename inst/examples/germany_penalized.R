@@ -1,5 +1,5 @@
 ## ===========================================================================
-##  German reunification with the INCLUSIVE PENALIZED SCM  (Online Appendix C)
+##  German reunification with the INCLUSIVE PENALIZED SCM  (Section 7.1)
 ##  Di Stefano and Mellace, "The inclusive synthetic control method"
 ##
 ##  iSCM is estimator-agnostic: it corrects the contamination on top of ANY
@@ -7,7 +7,7 @@
 ##  L'Hour (2021), estimated with the 'pensynth' package (cross-validated penalty
 ##  via cv_pensynth(), clarabel solver), retaining the predictor-weighting matrix
 ##  V from the corresponding Synth training fit -- exactly the specification used
-##  for Figure C.2 of the paper. We then assemble the inclusive penalized SCM with
+##  for Figure 2 of the paper. We then assemble the inclusive penalized SCM with
 ##  iscm_assemble(), which builds Omega from the cross-weights and solves the
 ##  system (the m-unit generalisation of the 2x2 determinant-ratio computation in
 ##  the paper's replication script).
@@ -179,7 +179,7 @@ legend("topleft", bty = "n", cex = 0.8, lwd = 2, col = c("black", "red"),
 par(op)
 
 ## ---------------------------------------------------------------------------
-## Export the complete four-panel Figure C.2 and numerical penalized results
+## Export the complete four-panel Figure 2 and numerical penalized results
 ## ---------------------------------------------------------------------------
 draw_pen_panel <- function(gaps, cols, labels, panel) {
   plot(years, gaps[[1]], type = "l", col = cols[[1]], lwd = 2,
@@ -211,10 +211,10 @@ draw_figure2 <- function() {
     "(d) Penalized iSCM vs iSCM, Austria")
 }
 
-pdf(file.path(output_dir, "figure_C2_penalized_SCM.pdf"),
+pdf(file.path(output_dir, "figure_2_penalized_SCM.pdf"),
     width = 11, height = 9, useDingbats = FALSE)
 draw_figure2(); dev.off()
-png(file.path(output_dir, "figure_C2_penalized_SCM.png"),
+png(file.path(output_dir, "figure_2_penalized_SCM.png"),
     width = 2200, height = 1800, res = 200)
 draw_figure2(); dev.off()
 

@@ -24,7 +24,7 @@ Returns a copy of \code{data} in which the post-intervention outcomes of the
 main treated unit and of the potentially affected units are replaced by the
 observed outcomes minus their iSCM estimates, \eqn{Y_{1t} - \hat\theta^{iSCM}_{1t}}
 and \eqn{Y_{it} - \hat\gamma^{iSCM}_{it}}. These are the corrected outcomes on
-which the placebo analysis of Online Appendix B is computed.
+which the placebo analysis of Section 6 is computed.
 }
 \details{
 Use it when the synthetic controls were estimated outside the package: estimate

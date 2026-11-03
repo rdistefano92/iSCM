@@ -53,7 +53,7 @@
 #'   Implied weights on pure controls (Lemma 3.1) \tab \code{fit$implied_weights} \cr
 #'   Choose restricted / full / simplified (Section 5.1) \tab \code{iscm_compare(...)} \cr
 #'   Same, for fits estimated outside the package \tab \code{iscm_compare_fits()}, \code{iscm_decision()} \cr
-#'   Placebo inference (Online Appendix B) \tab \code{iscm_placebo(fit, ...)}, \code{plot()} \cr
+#'   Placebo inference (Section 6) \tab \code{iscm_placebo(fit, ...)}, \code{plot()} \cr
 #'   Same, for fits estimated outside the package \tab \code{iscm_purge()}, \code{iscm_placebo_fits()} \cr
 #'   Sensitivity to the choice of \eqn{M} (Section 5.2) \tab \code{iscm_sensitivity(...)} \cr
 #'   Apply the correction to external fits \tab \code{iscm_assemble()} \cr
@@ -69,8 +69,8 @@
 #' system.file("examples", "germany_replication.R", package = "iscm")
 #' system.file("examples", "germany_penalized.R",   package = "iscm")
 #' }
-#' The first reproduces Tables 1 and C.1-C.2, Figure 1 and the placebo analysis
-#' (Figure C.1); the second the inclusive penalized SCM (Figure C.2). Both require
+#' The first reproduces Tables 1-3, Figure 1 and the placebo analysis
+#' (Figure B.1); the second the inclusive penalized SCM (Figure 2). Both require
 #' \pkg{Synth}; the second also \pkg{pensynth} and \pkg{clarabel}. The vignette
 #' (\code{vignette("iscm")}) walks through the whole workflow.
 #'

@@ -106,7 +106,7 @@ cmp <- iscm_compare_fits(
 print(cmp)     # reproduces RMSPE 119 vs 261 for West Germany -> full iSCM
 
 ## Simplified iSCM: Austria is fit on the pure controls only. This is needed for
-## Table C.1 and complements the full-iSCM object used above.
+## Table 3 and complements the full-iSCM object used above.
 fit_simplified <- iscm_assemble(
   gaps = list("West Germany" = gap_wg, "Austria" = gap_au_r),
   weights = list("West Germany" = named(so_wg$solution.w),
@@ -198,7 +198,7 @@ table2 <- data.frame(
   row.names = NULL, check.names = FALSE)
 table2[table2$country == "West Germany", c("west_germany_unrestricted", "west_germany_restricted")] <- NA
 table2[table2$country == "Austria", c("austria_unrestricted", "austria_restricted")] <- NA
-write.csv(table2, file.path(figure_dir, "table_C2_weights.csv"), row.names = FALSE)
+write.csv(table2, file.path(figure_dir, "table_2_weights.csv"), row.names = FALSE)
 
 effects_frame <- function(unit) {
   unres <- if (unit == "West Germany") gap_wg[31:44] else gap_au[31:44]
@@ -219,7 +219,7 @@ averages <- aggregate(cbind(unrestricted_SCM, restricted_SCM, full_iSCM,
 averages$year <- "Average 1990-2003"
 selected$year <- as.character(selected$year)
 table3 <- rbind(selected, averages[names(selected)])
-write.csv(table3, file.path(figure_dir, "table_C1_effects.csv"),
+write.csv(table3, file.path(figure_dir, "table_3_effects.csv"),
           row.names = FALSE)
 
 diagnostics <- data.frame(
@@ -232,11 +232,11 @@ write.csv(diagnostics, file.path(figure_dir, "iscm_diagnostics.csv"), row.names 
 write.csv(cmp$comparison, file.path(figure_dir, "specification_comparison.csv"),
           row.names = FALSE)
 saveRDS(list(fit = fit, fit_simplified = fit_simplified, comparison = cmp,
-             table1 = table1, table_C2 = table2, table_C1 = table3,
+             table1 = table1, table2 = table2, table3 = table3,
              effects_annual = effects_annual),
         file.path(figure_dir, "germany_replication_results.rds"))
 
-## In-space placebo (Online Appendix B). The intervention is reassigned to each
+## In-space placebo (Section 6). The intervention is reassigned to each
 ## pure control in turn, using the same Synth specification as the unit being
 ## tested, on outcomes purged of the estimated iSCM effects. The specification
 ## uses predictors averaged over windows that include 1990, so the placebo
@@ -317,12 +317,12 @@ draw_placebo_figure <- function() {
   }
 }
 
-pdf(file.path(figure_dir, "figure_C1_placebo_RMSPE.pdf"),
+pdf(file.path(figure_dir, "figure_B1_placebo_RMSPE.pdf"),
     width = 10, height = 6.5, useDingbats = FALSE)
 draw_placebo_figure()
 dev.off()
 
-png(file.path(figure_dir, "figure_C1_placebo_RMSPE.png"),
+png(file.path(figure_dir, "figure_B1_placebo_RMSPE.png"),
     width = 2000, height = 1300, res = 200)
 draw_placebo_figure()
 dev.off()
@@ -336,6 +336,6 @@ write.csv(data.frame(
                             key$country[match(pure_idx, key$index)],
                           names(pb_au$ratios) %in%
                             key$country[match(pure_idx, key$index)])),
-  file.path(figure_dir, "figure_C1_placebo_RMSPE.csv"), row.names = FALSE)
+  file.path(figure_dir, "figure_B1_placebo_RMSPE.csv"), row.names = FALSE)
 
 message("Tables and figures saved in: ", normalizePath(figure_dir))

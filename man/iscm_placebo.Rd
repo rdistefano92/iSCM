@@ -42,10 +42,10 @@ An object of class \code{"iscm_placebo"}: a data frame
   conditioning diagnostics of \code{object} (\code{alpha}, \code{sigma_min},
   \code{amplification}), and the gaps of the target and of every placebo
   (\code{gaps}). \code{\link[=plot.iscm_placebo]{plot()}} draws the ratios
-  as in Figure C.1 of the paper, or the gap paths.
+  as in Figure B.1 of the paper, or the gap paths.
 }
 \description{
-Implements the placebo (permutation) inference of Online Appendix B of Di
+Implements the placebo (permutation) inference of Section 6 of Di
 Stefano and Mellace. Because the observed post-intervention outcomes of the
 focal units embed the effects of the intervention, the test statistics are
 computed from outcomes purged of the estimated iSCM effects. The statistic is
@@ -55,7 +55,7 @@ yielding a placebo distribution and a rank-based p-value.
 }
 \details{
 Run it once for the main treated unit and once for each affected unit
-(\code{target}). As discussed in Online Appendix B, treat the result as a
+(\code{target}). As discussed in Section 6, treat the result as a
 transparent diagnostic rather than a test with formal size guarantees: with
 \eqn{|C|} pure controls the smallest attainable p-value is \eqn{1/(|C|+1)},
 and for large \eqn{\alpha} the statistic of the target is tilted upwards.

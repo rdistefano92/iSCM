@@ -19,7 +19,7 @@
 #'   bounds how much the approximation errors of the underlying fits can be
 #'   magnified by the correction (Theorem 2.1(a)); values close to one mean the
 #'   correction is stable. \code{diag_dominant = TRUE} guarantees that
-#'   \eqn{\hat\Omega} is invertible (Lemma 2.3). Every \code{"iscm"} object
+#'   \eqn{\hat\Omega} is invertible (Lemma A.1). Every \code{"iscm"} object
 #'   stores this output in \code{$diagnostics}.
 #'
 #' @seealso \code{\link{iscm_compare}}, which uses these quantities to choose

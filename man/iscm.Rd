@@ -90,7 +90,7 @@ linear system whose solution removes the contamination exactly (Theorem 2.1).
 }
 \details{
 This is the main entry point of the package. It carries out the four
-implementation steps of Section 2.3: (1) fit the main treated unit on all other
+implementation steps of Section 2.4: (1) fit the main treated unit on all other
 units, (2) fit every potentially affected unit on all other units, (3) build
 \eqn{\hat\Omega}, (4) solve the system. With \code{simplified = TRUE} the
 affected units are fit on the pure controls only (Section 4.2).

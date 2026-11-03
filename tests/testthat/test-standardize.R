@@ -37,6 +37,6 @@ test_that("iscm_compare standardises Step 2 imbalance by predictor SD", {
                                 tolerance = 1e-4)))
 })
 
-test_that("standardize = TRUE is the default in iscm_compare", {
-  expect_identical(formals(iscm_compare)$standardize, TRUE)
+test_that("the plain sum is the default in iscm_compare, as in Section 5.1", {
+  expect_identical(formals(iscm_compare)$standardize, FALSE)
 })

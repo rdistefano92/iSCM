@@ -118,18 +118,24 @@ simulate_iscm <- function(n_affected = 1, n_pure = 6, t0 = 24, t1 = 6,
 #'   \item{\code{TR}, \code{A1}}{The main treated unit and the potentially
 #'     affected unit are close to each other and share \eqn{u = 1} (think of
 #'     West Germany and Austria).}
-#'   \item{\code{C1}, \code{C2}}{Pure controls on either side of the pair, also
-#'     with \eqn{u = 1}, but farther from \code{TR}.}
+#'   \item{\code{C1}, \code{C2}}{Pure controls with \eqn{u = 1} on either side
+#'     of the pair: \code{C1} beyond \code{TR}, \code{C2} just beyond
+#'     \code{A1}. Both are farther from \code{TR} than \code{A1} is.}
 #'   \item{\code{C3}, \code{C4}}{Pure controls that are the closest to \code{TR}
 #'     in covariates but have \eqn{u = 0}.}
 #'   \item{\code{C5}-\code{C8}}{Remote pure controls.}
 #' }
 #' A synthetic control matched on \code{x1} and \code{x2} reproduces \code{TR}
-#' from \code{A1} and \code{C1}, and \code{A1} from \code{TR} and \code{C2}, so the
-#' unrestricted fits match \eqn{u} and the iSCM correction is accurate. Without
-#' \code{A1}, the closest feasible combination relies on \code{C3}-\code{C4}, whose
-#' unobserved loading is wrong, so the restricted SCM is biased; the simplified
-#' iSCM inherits the same problem through the restricted fit of \code{A1}.
+#' mostly from \code{A1} and \code{C1}, and \code{A1} mostly from \code{C2}, with a
+#' smaller weight on \code{TR}. The cross-weights (about 0.5 and 0.3) are close to
+#' those of the German application, the amplification factor \eqn{\alpha} is
+#' about 1.2, and the unrestricted fits match \eqn{u}, so the iSCM correction is
+#' accurate. Without \code{A1}, the restricted optimizer chooses between two
+#' combinations that fit the covariates equally well: \code{C1} with \code{C2},
+#' which has the right \eqn{u}, and \code{C1} with \code{C3}-\code{C4}, which has
+#' not. Which one it picks depends on the noise, so the restricted SCM is
+#' unstable and biased on average. The simplified iSCM is accurate here, because
+#' the restricted fit of \code{A1} can rely on \code{C2}.
 #'
 #' Use it with a predictor-based estimator, typically
 #' \code{iscm(..., predictors = c("x1", "x2"), estimator = scm_penalized)}. The
@@ -149,7 +155,7 @@ simulate_iscm <- function(n_affected = 1, n_pure = 6, t0 = 24, t1 = 6,
 #'   performs well; \code{\link{scm_penalized}}.
 #'
 #' @examples
-#' sim <- simulate_iscm_covariates(seed = 1)     # true effects: 2 on TR, 3 on A1
+#' sim <- simulate_iscm_covariates(seed = 4)     # true effects: 2 on TR, 3 on A1
 #' args <- list(sim$data, "unit", "time", "Y", "TR", "A1", sim$t0,
 #'              predictors = c("x1", "x2"), estimator = scm_penalized)
 #'
@@ -170,7 +176,7 @@ simulate_iscm_covariates <- function(t0 = 20, t1 = 8, tau = 2, spill = 3,
   tt <- seq_len(Tt)
   # columns: x1, x2, u
   geo <- rbind(TR = c( 0.0,  0.0, 1), A1 = c( 0.3,  0.0, 1),
-               C1 = c(-0.3,  0.0, 1), C2 = c( 0.6,  0.0, 1),
+               C1 = c(-0.3,  0.0, 1), C2 = c( 0.45, 0.0, 1),
                C3 = c( 0.2,  0.3, 0), C4 = c( 0.2, -0.3, 0),
                C5 = c(-0.6,  0.5, 1), C6 = c(-0.6, -0.5, 1),
                C7 = c( 0.9,  0.6, 0.5), C8 = c( 0.9, -0.6, 0.5))

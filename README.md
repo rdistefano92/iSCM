@@ -73,7 +73,7 @@ fit$effects            # estimates as a matrix (row 1 = treated, then affected)
 | see the implied weights on pure controls (Lemma 3.1) | `fit$implied_weights` |
 | **choose** among restricted / full / simplified (Section 5.1) | `iscm_compare(...)` |
 | same, for fits estimated outside the package | `iscm_compare_fits()`, `iscm_decision()` |
-| run the **placebo** analysis ([Online Appendix B](https://arxiv.org/abs/2403.17624)) | `iscm_placebo(fit, data, id, time, outcome, target = ...)` |
+| run the **placebo** analysis ([Section 6](https://arxiv.org/abs/2403.17624)) | `iscm_placebo(fit, data, id, time, outcome, target = ...)` |
 | same, for fits estimated outside the package | `iscm_purge()`, then `iscm_placebo_fits(fit, ..., placebo_weights)` |
 | check **sensitivity** to the set of affected units (Section 5.2) | `iscm_sensitivity(..., affected_sets = list(...))` |
 | use **another SC-type estimator** | `iscm(..., estimator = scm_penalized)`, `scm_synth`, or your own function (`?backends`) |
@@ -99,27 +99,40 @@ the German application:
   structure, which the covariates do not capture);
 - the main treated unit `TR` and the affected unit `A1` are close to each other
   in the covariates and share the same *u*, like West Germany and Austria;
-- the pure controls closest to `TR` in the covariates, `C3` and `C4`, have a
-  different *u*; the pure controls with the same *u* are farther away.
+- two pure controls close to `TR` in the covariates, `C3` and `C4`, have a
+  different *u*; the pure controls with the same *u*, `C1` and `C2`, lie on
+  either side of the pair, farther from `TR` than `A1`.
 
 All synthetic controls are matched on `x1` and `x2` only. With `A1` in the donor
 pool, the synthetic `TR` is built mostly from `A1` and therefore has the right
-*u*. Without `A1`, the restricted SCM picks `C3` and `C4`, which match the
-covariates but not *u*, so its counterfactual is biased. iSCM keeps `A1` and
-removes the contamination from its spillover.
+*u*; the cross-weights (about 0.5 and 0.3) are similar to those of the German
+application. Without `A1`, the restricted optimizer can match the covariates
+equally well with `C1` and `C2` (right *u*) or with `C1`, `C3` and `C4` (wrong
+*u*); which one it picks depends on the noise, so the restricted SCM is unstable
+and biased on average. iSCM keeps `A1` and removes the contamination from its
+spillover.
 
 ```r
-sim  <- simulate_iscm_covariates(seed = 1)     # true effects: 2 on TR, 3 on A1
+sim  <- simulate_iscm_covariates(seed = 4)     # true effects: 2 on TR, 3 on A1
 args <- list(sim$data, "unit", "time", "Y", "TR", "A1", sim$t0,
              predictors = c("x1", "x2"), estimator = scm_penalized)
 fit  <- do.call(iscm, args)
 rest <- do.call(restricted_scm, args)
 ```
 
-Over 100 replications the average estimate of the effect on `TR` (true value 2) is
-0.51 for the unrestricted SCM, 4.06 for the restricted SCM, 3.20 for the
-simplified iSCM and 2.00 for the full iSCM, and `iscm_compare()` recommends the
-full iSCM in every replication. The script
+Over 100 replications, with a true effect on `TR` of 2:
+
+| | mean estimate | mean absolute error |
+|---|---|---|
+| unrestricted SCM | 0.51 | 1.49 |
+| restricted SCM | 2.93 | 0.93 |
+| full iSCM | 1.97 | 0.05 |
+| simplified iSCM | 1.94 | 0.07 |
+| specification chosen by `iscm_compare()` | 1.99 | 0.06 |
+
+The decision rule of Section 5.1 recommends the full iSCM in 84 replications and
+the restricted SCM in the other 16, in which the restricted fit is comparable;
+the amplification factor α stays between 1.00 and 1.23. The script
 `system.file("examples", "simulation_covariates.R", package = "iscm")` reproduces
 these figures.
 
@@ -221,11 +234,11 @@ and `.png`) in a folder of your choice:
 options(iscm.output_dir = "results")   # folder for tables and figures
 
 # West Germany and Austria, about 4 minutes. Needs Synth.
-# Saves Tables 1, C.1 and C.2, Figure 1 and the placebo ratios of Figure C.1,
+# Saves Tables 1, 2 and 3, Figure 1 and the placebo ratios of Figure B.1,
 # and prints Omega, the effects, the decision rule and the placebo p-values.
 source(system.file("examples", "germany_replication.R", package = "iscm"))
 
-# Inclusive penalized SCM (Figure C.2). Needs Synth, pensynth and clarabel.
+# Inclusive penalized SCM (Figure 2). Needs Synth, pensynth and clarabel.
 source(system.file("examples", "germany_penalized.R", package = "iscm"))
 ```
 
