@@ -94,12 +94,13 @@ summary(fit)
 ```
 
 The inclusive and unrestricted gaps coincide before the intervention, because the
-correction only applies afterwards.
+correction only applies afterwards. With simulated data, `truth` adds the true
+effect as a reference line: zero before the intervention, `sim$tau` after it.
 
 ```{r plot}
 rest <- restricted_scm(sim$data, "unit", "time", "Y",
                        treated = "TR", affected = "A1", t0 = sim$t0)
-plot(fit, restricted = rest)
+plot(fit, restricted = rest, truth = sim$tau)
 ```
 
 ### The four specifications side by side
@@ -186,13 +187,42 @@ on `C2`, which has the right $u$. iSCM also recovers the spillover:
 mean(fit_c$effects["A1", ])   # true spillover = 3
 ```
 
+The plot of the gaps, with the true effect as a reference, shows the three
+estimators at work:
+
+```{r cov-plot}
+plot(fit_c, restricted = rest_c, truth = sim_c$tau)
+```
+
+- **Before the intervention**, a good synthetic control has a gap close to zero.
+  This holds for the unrestricted fit, and hence for iSCM, which coincides with
+  it before the intervention. The restricted gap drifts away from zero instead:
+  its donors `C3` and `C4` match the covariates but not $u$, whose effect on the
+  outcome grows over time. This poor pre-intervention fit is the warning sign
+  that the decision rule of Section 5.1 picks up.
+- **After the intervention**, iSCM follows the true effect. The unrestricted SCM
+  is pulled below it, by the weight of `A1` times its positive spillover: this is
+  the contamination that iSCM removes. The restricted SCM overshoots, because the
+  bias already visible before the intervention carries over. Its jump at the
+  intervention happens to be close to the true effect here, but reading the
+  effect that way would assume that the bias stays constant, which nothing
+  guarantees: the estimate of the restricted SCM is its gap, and the gap is far
+  from the truth.
+
+The same plot for the affected unit shows that iSCM also recovers the spillover
+on `A1`, which the unrestricted SCM underestimates:
+
+```{r cov-plot-a1}
+plot(fit_c, unit = c("TR", "A1"),
+     truth = list(TR = sim_c$tau, A1 = sim_c$spill))
+```
+
 Plots are drawn with `ggplot2`, so they can be modified with the usual
 `ggplot2` functions. `type = "trends"` compares the observed outcome with the
 synthetic ones, and `type = "weights"` shows the donor weights next to the
 implied weights on the pure controls:
 
-```{r cov-plot}
-plot(fit_c, restricted = rest_c)
+```{r cov-plot-more}
 plot(fit_c, type = "trends", restricted = rest_c)
 plot(fit_c, type = "weights")
 ```

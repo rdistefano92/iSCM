@@ -1,3 +1,13 @@
+# iscm 0.1.5
+
+* `plot.iscm()` gains `truth`: with simulated data, the true effect is drawn as a
+  reference line (zero before the intervention), so it is clear which estimate
+  is right. With several units, pass a named list, e.g.
+  `truth = list(TR = sim$tau, A1 = sim$spill)`.
+* Vignette: the plots of the simulated examples show the true effect, and the
+  section "When the affected unit is essential" explains what the plot shows
+  before and after the intervention, and adds the plot for the affected unit.
+
 # iscm 0.1.4
 
 Aligned with the version of the paper on arXiv (arXiv:2403.17624).

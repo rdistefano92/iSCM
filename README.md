@@ -69,6 +69,7 @@ fit$effects            # estimates as a matrix (row 1 = treated, then affected)
 | see the effects | `print(fit)`, `summary(fit)`, `fit$effects` |
 | plot the gaps (Figure 1 style) | `plot(fit, unit = "A1", restricted = rest)` |
 | plot observed vs synthetic outcomes, or the weights | `plot(fit, type = "trends")`, `plot(fit, type = "weights")` |
+| add the true effect to the plot (simulated data) | `plot(fit, truth = sim$tau)` |
 | check the **conditioning** of the correction (det, σ<sub>min</sub>, α) | `fit$diagnostics`, `omega_diagnostics(Omega)` |
 | see the implied weights on pure controls (Lemma 3.1) | `fit$implied_weights` |
 | **choose** among restricted / full / simplified (Section 5.1) | `iscm_compare(...)` |

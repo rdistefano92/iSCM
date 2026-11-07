@@ -9,6 +9,7 @@
   unit = NULL,
   type = c("gaps", "trends", "weights"),
   restricted = NULL,
+  truth = NULL,
   title = NULL,
   xlab = "Time",
   ylab = NULL,
@@ -27,6 +28,12 @@ units are drawn in separate panels.}
 \item{restricted}{Optional restricted fit to overlay, as returned by
 \code{\link{restricted_scm}} (or any list with a \code{gap} element over all
 periods). With several units, a named list with one fit per unit.}
+
+\item{truth}{For \code{type = "gaps"} with simulated data: the true effect,
+drawn as a reference line (zero before the intervention, the true effect
+after it). A number or a vector with one value per post-intervention
+period, e.g. \code{sim$tau} from \code{\link{simulate_iscm}}; with several
+units, a named list with one element per unit.}
 
 \item{title, xlab, ylab}{Optional labels; sensible defaults are used.}
 
@@ -65,6 +72,7 @@ rest <- restricted_scm(sim$data, "unit", "time", "Y", sim$treated,
                        sim$affected, sim$t0)
 
 plot(fit, restricted = rest)                   # gaps of the main treated unit
+plot(fit, restricted = rest, truth = sim$tau)  # with the true effect
 plot(fit, unit = c("TR", "A1"))                # treated and affected unit
 plot(fit, type = "trends", restricted = rest)  # observed vs synthetic
 plot(fit, type = "weights")                    # donor and implied weights

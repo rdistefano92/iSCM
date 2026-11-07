@@ -1,10 +1,12 @@
 # Colours: categorical slots 1-3 of a palette validated for colour-vision
 # deficiencies; each series also has its own line type, so the plots remain
 # readable in black and white.
-.iscm_cols <- c("iSCM" = "#2a78d6", "Unrestricted SCM" = "#eb6834",
-                "Restricted SCM" = "#1baf7a", "Observed" = "#0b0b0b")
-.iscm_ltys <- c("iSCM" = "solid", "Unrestricted SCM" = "dashed",
-                "Restricted SCM" = "dotted", "Observed" = "solid")
+.iscm_cols <- c("True effect" = "#0b0b0b", "iSCM" = "#2a78d6",
+                "Unrestricted SCM" = "#eb6834", "Restricted SCM" = "#1baf7a",
+                "Observed" = "#0b0b0b")
+.iscm_ltys <- c("True effect" = "twodash", "iSCM" = "solid",
+                "Unrestricted SCM" = "dashed", "Restricted SCM" = "dotted",
+                "Observed" = "solid")
 .ink_muted <- "#52514e"
 .placebo_grey <- "#b8b7b2"
 
@@ -96,6 +98,11 @@ theme_iscm <- function(base_size = 11) {
 #' @param restricted Optional restricted fit to overlay, as returned by
 #'   \code{\link{restricted_scm}} (or any list with a \code{gap} element over all
 #'   periods). With several units, a named list with one fit per unit.
+#' @param truth For \code{type = "gaps"} with simulated data: the true effect,
+#'   drawn as a reference line (zero before the intervention, the true effect
+#'   after it). A number or a vector with one value per post-intervention
+#'   period, e.g. \code{sim$tau} from \code{\link{simulate_iscm}}; with several
+#'   units, a named list with one element per unit.
 #' @param title,xlab,ylab Optional labels; sensible defaults are used.
 #' @param min_weight For \code{type = "weights"}: donors with smaller weights are
 #'   not shown. Default \code{0.001}.
@@ -112,6 +119,7 @@ theme_iscm <- function(base_size = 11) {
 #'                        sim$affected, sim$t0)
 #'
 #' plot(fit, restricted = rest)                   # gaps of the main treated unit
+#' plot(fit, restricted = rest, truth = sim$tau)  # with the true effect
 #' plot(fit, unit = c("TR", "A1"))                # treated and affected unit
 #' plot(fit, type = "trends", restricted = rest)  # observed vs synthetic
 #' plot(fit, type = "weights")                    # donor and implied weights
@@ -120,8 +128,8 @@ theme_iscm <- function(base_size = 11) {
 #' plot(fit) + ggplot2::labs(y = "Effect on Y", title = NULL)
 #' @export
 plot.iscm <- function(x, unit = NULL, type = c("gaps", "trends", "weights"),
-                      restricted = NULL, title = NULL, xlab = "Time", ylab = NULL,
-                      min_weight = 0.001, ...) {
+                      restricted = NULL, truth = NULL, title = NULL, xlab = "Time",
+                      ylab = NULL, min_weight = 0.001, ...) {
   type <- match.arg(type)
   if (is.null(unit)) unit <- x$treated
   unit <- as.character(unit)
@@ -130,7 +138,7 @@ plot.iscm <- function(x, unit = NULL, type = c("gaps", "trends", "weights"),
     stop("`unit` must be among the focal units: ", paste(x$focal, collapse = ", "),
          call. = FALSE)
   switch(type,
-         gaps = .plot_gaps(x, unit, restricted, title, xlab, ylab),
+         gaps = .plot_gaps(x, unit, restricted, title, xlab, ylab, truth),
          trends = .plot_trends(x, unit, restricted, title, xlab, ylab),
          weights = .plot_weights(x, unit, title, min_weight))
 }
@@ -156,11 +164,35 @@ plot.iscm <- function(x, unit = NULL, type = c("gaps", "trends", "weights"),
   p
 }
 
-.plot_gaps <- function(x, unit, restricted, title, xlab, ylab) {
+# Internal: true-effect reference series (0 before the intervention).
+.truth_series <- function(truth, units, times, t0) {
+  if (is.null(truth)) return(list())
+  post <- times > t0
+  one <- function(v, u) {
+    v <- as.numeric(v)
+    if (!length(v) %in% c(1L, sum(post)))
+      stop(sprintf("`truth` for '%s' must be a number or have one value per post-intervention period (%d).",
+                   u, sum(post)), call. = FALSE)
+    out <- numeric(length(times)); out[post] <- v; out
+  }
+  if (!is.list(truth)) {
+    if (length(units) > 1L)
+      stop("With several units, pass `truth` as a named list, one element per unit.",
+           call. = FALSE)
+    return(stats::setNames(list(one(truth, units)), units))
+  }
+  keep <- intersect(units, names(truth))
+  stats::setNames(lapply(keep, function(u) one(truth[[u]], u)), keep)
+}
+
+.plot_gaps <- function(x, unit, restricted, title, xlab, ylab, truth = NULL) {
   times <- as.numeric(x$times)
   rg <- .restricted_gaps(restricted, unit, length(times))
+  tg <- .truth_series(truth, unit, times, x$t0)
   df <- do.call(rbind, lapply(unit, function(u) {
-    out <- rbind(
+    out <- if (is.null(tg[[u]])) NULL else
+      data.frame(time = times, value = tg[[u]], series = "True effect", unit = u)
+    out <- rbind(out,
       data.frame(time = times, value = as.numeric(x$gaps_iscm[, u]),
                  series = "iSCM", unit = u),
       data.frame(time = times, value = as.numeric(x$gaps_unrestricted[, u]),

@@ -42,3 +42,14 @@ test_that("plot.iscm_placebo draws ratios and gaps", {
   p <- plot(pb, type = "gaps", prune = 0)
   expect_equal(unique(p$data$unit), "TR")
 })
+
+test_that("plot.iscm draws the true effect when supplied", {
+  p <- plot(fit, truth = sim$tau)
+  d <- p$data[p$data$series == "True effect", ]
+  expect_equal(d$value, c(rep(0, sim$t0), sim$tau))
+  p2 <- plot(fit, unit = c("TR", "A1"), truth = list(TR = 2, A1 = sim$spill))
+  expect_true(all(c("TR", "A1") %in% p2$data$unit[p2$data$series == "True effect"]))
+  expect_silent(ggplot2::ggplot_build(p2))
+  expect_error(plot(fit, truth = 1:3), "post-intervention")
+  expect_error(plot(fit, unit = c("TR", "A1"), truth = 2), "named list")
+})

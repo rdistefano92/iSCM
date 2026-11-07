@@ -1,7 +1,7 @@
 Package: iscm
 Type: Package
 Title: The Inclusive Synthetic Control Method
-Version: 0.1.4
+Version: 0.1.5
 Authors@R: c(
     person("Roberta", "Di Stefano", role = c("aut", "cre"),
            email = "roberta.distefano@unimol.it"),
